@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Logs
 logs
 *.log
@@ -111,3 +110,12 @@ dist
 .DS_Store
 .idea/
 
+<<<<<<< HEAD
+=======
+./browserstack.json
+cypress
+cypress.json
+
+
+dist/
+>>>>>>> removed dist folder
