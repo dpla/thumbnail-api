@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "esModuleInterop": true,
+    "target": "es6",
+    "moduleResolution": "node",
+    "outDir": "dist",
+    "allowJs" : true,
+    "checkJs" : true
+  },
+  "lib": ["es2015"],
+  "exclude": [
+    "node_modules", 
+    "**/dist/**",
+    "**/test/**",
+    "**/node_modules/*"
+  ]
+}
