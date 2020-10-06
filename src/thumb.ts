@@ -11,20 +11,31 @@ const PATH_PATTERN: RegExp = /^\/thumb\/([a-f0-9]{32})$/;
 const s3: aws.S3 = new aws.S3();
 
 function thumb(req: express.Request, res: express.Response): RequestHandler {
-  getItemId(req.path)
+  const itemId = getItemId(req.path)
+  .then((itemId) => itemId )
+  .catch((err) => { res.sendStatus(404) });
+
+  Promise
+  .resolve(itemId)
   .then(
-    (itemId) => itemId,
-    (err) => { res.sendStatus(404); return }
-  ).then(
     (itemId: string) => lookupImageInS3(itemId)
   ).then(
-    () => { setCacheHeaders(LONG_CACHE_TIME, res); },
-    () => { setCacheHeaders(SHORT_CACHE_TIME, res); }
+    () => { 
+      setCacheHeaders(LONG_CACHE_TIME, res); 
+    },
+    (url: string) => { 
+      setCacheHeaders(SHORT_CACHE_TIME, res);
+      lookupImageInElasticsearch(itemId)
+      getImageUrlFromSearchResult() 
+    }
   )
 
   res.sendStatus(200); 
 };
 
+function sendResponse(code: number) {
+
+}
 
 function getItemId(path: string): Promise<string> {
   const matchResult = PATH_PATTERN.exec(path)
@@ -33,15 +44,12 @@ function getItemId(path: string): Promise<string> {
   } else {
     return Promise.reject("Bad item ID.");
   }
-} 
+};
 
 function lookupImageInS3(id: string): Promise<any> {
   const prefix = id.substr(0, 4).split("").join("/");
   const s3key = prefix + "/" + id + ".jpg";
-  const params: aws.S3.Types.HeadObjectRequest = {
-    Bucket: "dpla-thumbnails",
-    Key: s3key
-  };
+  const params = { Bucket: "dpla-thumbnails", Key: s3key };
   return s3.headObject(params).promise()
 };
 
@@ -50,7 +58,7 @@ function lookupImageInElasticsearch(id: string): Promise<any> {
   return fetch(`${elasticUrl}/item/_search?q=id:${id}&_source=id,object`);
 }
 
-function getImageUrlFromSearch(json: Object): Promise<string> {
+function getImageUrlFromSearchResult(json: Object): Promise<string> {
 
   if ((!json.hasOwnProperty("hits")) || (!json.hasOwnProperty("total"))) {
     return Promise.reject("Bad response from ElasticSearch.");
