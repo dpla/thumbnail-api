@@ -1,16 +1,16 @@
 import * as express from 'express';
-import { RequestHandler } from 'express-serve-static-core';
-
 import * as aws from 'aws-sdk';
+import { RequestHandler } from 'express-serve-static-core';
 
 const s3: aws.S3 = new aws.S3();
 
 const LONG_CACHE_TIME: number = 60 * 60 * 24 * 30; //seconds
 const SHORT_CACHE_TIME: number = 60; //seconds
 const IMAGE_REQUEST_TIMEOUT: number = 10000; //ms
+const CACHE_BUCKET: string = "dpla-thumbnails";
 const PATH_PATTERN: RegExp = /^\/thumb\/([a-f0-9]{32})$/;
 
-async function thumb(req: express.Request, res: express.Response): RequestHandler {
+const thumb: RequestHandler = async function(req: express.Request, res: express.Response) {
 
   const itemIdPromise: Promise<string> = getItemId(req.path)
   
@@ -24,20 +24,23 @@ async function thumb(req: express.Request, res: express.Response): RequestHandle
 
   Promise
   .resolve(itemId)
+  .then((itemId: string) => lookupImageInS3(itemId))
   .then(
-    (itemId: string) => lookupImageInS3(itemId)
-  ).then(
     //get image from s3
-    () => { 
+    (response) => { 
       setCacheHeaders(LONG_CACHE_TIME, res);
-
+      getS3Url(itemId)
+      .then((url) => proxyImage(url))
+      .then((response) => {
+        res.send(getImageStatusCode(response))
+        res.pipe(response);
+      })
     },
     //proxy image from contributor, queue cache request
-    (url: string) => { 
+    (err: string) => { 
       setCacheHeaders(SHORT_CACHE_TIME, res);
       lookupItemInElasticsearch(itemId)
-      //.then(getImageUrlFromSearchResult())
-       
+      //.then(getImageUrlFromSearchResult())     
     }
   )
 
@@ -55,11 +58,19 @@ function getItemId(path: string): Promise<string> {
   }
 }
 
-function lookupImageInS3(id: string): Promise<any> {
+function getS3Key(id: string): string {
   const prefix = id.substr(0, 4).split("").join("/");
-  const s3key = prefix + "/" + id + ".jpg";
-  const params = { Bucket: "dpla-thumbnails", Key: s3key };
-  return s3.headObject(params).promise()
+  return prefix + "/" + id + ".jpg";
+}
+
+function lookupImageInS3(id: string): Promise<aws.PromiseResult<aws.AWSError, aws.S3.Types.HeadObjectOutput>> {
+  const params = { Bucket: CACHE_BUCKET, Key: getS3Key(id) };
+  return s3.headObject(params).promise();
+}
+
+function getS3Url(id: string): Promise<string> {
+  const params = { Bucket: CACHE_BUCKET, Key: getS3Key(id) };
+  return s3.getSignedUrlPromise("getObject", params);
 }
 
 function lookupItemInElasticsearch(id: string): Promise<Response> {
@@ -76,9 +87,8 @@ function getImageUrlFromSearchResult(json: Object): Promise<string> {
   if (json["hits"]["total"] == 0) {
     return Promise.reject("No record found.");
   }
-  
-  const obj = json?.["hits"]?.hits?.[0]?._source?.object;
 
+  const obj = json?.["hits"]?.hits?.[0]?._source?.object;
   let url = "";
 
   if (obj && Array.isArray(obj)) {
@@ -93,9 +103,10 @@ function getImageUrlFromSearchResult(json: Object): Promise<string> {
 
   if (!isProbablyURL(url)) {
     return Promise.reject("URL was malformed.");
-  }
 
-  return Promise.resolve(url);
+  } else {
+    return Promise.resolve(url);
+  }
 }
 
 function isProbablyURL(s: string): boolean {
@@ -109,37 +120,32 @@ function setCacheHeaders(seconds: number, response: express.Response): void {
   response.setHeader("Expires", expirationDateString);
 }
 
-function withTimeout(msecs, promise) {
+function withTimeout(msecs:number, promise: Promise<any>) {
   const timeout = new Promise((resolve, reject) => {
-    setTimeout(() => {
-      reject(new Error('Response from server timed out.'));
-    }, msecs);
+    setTimeout(() => {reject(new Error('Response from server timed out.'))}, msecs);
   });
   return Promise.race([timeout, promise]);
 }
 
-function proxyImage(imageUrl: string) {
-
+function proxyImage(imageUrl: string): Promise<Response> {
   const request: Request = new Request(imageUrl);
   request.headers.append("User-Agent", "DPLA Image Proxy");
-
   return withTimeout(IMAGE_REQUEST_TIMEOUT, fetch(request));
-
-
-  // try {
-  //   libRequest()
-  //     .on("response", response => {
-  //       this.handleImageResponse(response);
-  //     })
-  //     .on("error", error => {
-  //       this.handleImageConnectionError(error);
-  //     })
-  //     .pipe(this.response);
-  // } catch (e) {
-  //   console.error(e.stack);
-  //   this.returnError(500);
-  // }
 }
+
+// try {
+//   libRequest()
+//     .on("response", response => {
+//       this.handleImageResponse(response);
+//     })
+//     .on("error", error => {
+//       this.handleImageConnectionError(error);
+//     })
+//     .pipe(this.response);
+// } catch (e) {
+//   console.error(e.stack);
+//   this.returnError(500);
+// }
 
 function pruneHeaders(headers: Headers) {
   // Reduce headers to just those that we want to pass through
@@ -151,28 +157,21 @@ function pruneHeaders(headers: Headers) {
   });
 }
 
-function imageResponse(imgResponse: Response) {
-
-  // We have our own ideas of which response codes are appropriate for our
-  // client.
+function getImageStatusCode(imgResponse: Response): number {
+  // We have our own ideas of which response codes are appropriate for our client.
   switch (imgResponse.status) {
     case 200:
-      console.log("Received 200 response");
-      break;
+      return 200;
     case 404:
     case 410:
       // We treat a 410 as a 404, because our provider could correct
       // the `object' property in the item's metadata, meaning the
       // resource doesn't have to be "410 Gone".
-      console.error(`${this.imageURL} not found`);
-      imgResponse.statusCode = 404;
-      break;
+      return 404;   
     default:
       // Other kinds of errors are just considered "bad gateway" errors
       // because we don't want to own them.
-      console.error(`${this.imageURL} status ${imgResponse.statusCode}`);
-      imgResponse.statusCode = 502;
-      break;
+      return 502;
   }
 }
 
