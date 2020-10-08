@@ -8,7 +8,7 @@ import {Request, Response, Headers} from "node-fetch";
 const LONG_CACHE_TIME: number = 60 * 60 * 24 * 30; //seconds
 const SHORT_CACHE_TIME: number = 60; //seconds
 const IMAGE_REQUEST_TIMEOUT: number = 10000; //ms
-const CACHE_BUCKET: string = "dpla-scratch";
+const CACHE_BUCKET: string = "dpla-thumbnails";
 const PATH_PATTERN: RegExp = /^\/thumb\/([a-f0-9]{32})$/;
 const DEFAULT_SEARCH_INDEX: string = "http://search.internal.dp.la:9200/dpla_alias";
 
