@@ -15,7 +15,7 @@ const DEFAULT_SEARCH_INDEX: string = "http://search.internal.dp.la:9200/dpla_ali
 const s3: aws.S3 = new aws.S3();
 const sqs: aws.SQS = new aws.SQS({region: "us-east-1"});
 
-const thumb: RequestHandler = async function (req: express.Request, res: express.Response) {
+export const thumb: RequestHandler = async function (req: express.Request, res: express.Response) {
 
     const itemId = getItemId(req.path);
 
@@ -74,7 +74,7 @@ const thumb: RequestHandler = async function (req: express.Request, res: express
 
 //item ids are always the same length and have hex characters in them
 //blow up if this isn't one
-function getItemId(path: string): string | undefined {
+export function getItemId(path: string): string | undefined {
     const matchResult = PATH_PATTERN.exec(path)
     if (matchResult) {
         return matchResult[1];
@@ -85,27 +85,28 @@ function getItemId(path: string): string | undefined {
 
 //the keys in the cache bucket in s3 have subfolders to keep it from being an enormous list
 //the first 4 hex digits in the image id are used to create a path structure like /1/2/3/4
-function getS3Key(id: string): string {
+//weak argument validation here because it should have already been validated by getItemId.
+export function getS3Key(id: string): string {
     const prefix = id.substr(0, 4).split("").join("/");
     return prefix + "/" + id + ".jpg";
 }
 
 //performs a head request against s3. it either works and we grab the data out from s3, or it fails and
 //we get it from the contributor.
-function lookupImageInS3(id: string): Promise<PromiseResult<aws.S3.Types.HeadObjectOutput, aws.AWSError>> {
+export function lookupImageInS3(id: string): Promise<PromiseResult<aws.S3.Types.HeadObjectOutput, aws.AWSError>> {
     console.debug("IN: lookupImageInS3 ", id);
     const params = {Bucket: CACHE_BUCKET, Key: getS3Key(id)};
     return s3.headObject(params).promise();
 }
 
 //todo: should we be doing a GET instead of a HEAD and piping out the data instead of using a signed URL?
-function getS3Url(id: string): Promise<string> {
+export function getS3Url(id: string): Promise<string> {
     console.debug("IN: getS3Url ", id);
     const params = {Bucket: CACHE_BUCKET, Key: getS3Key(id)};
     return s3.getSignedUrlPromise("getObject", params);
 }
 
-function queueToThumbnailCache(id: string, url: string): void {
+export function queueToThumbnailCache(id: string, url: string): void {
     console.debug("IN: queueToThumbnailCache", id, url);
     if (!process.env.SQS_URL) return;
 
@@ -124,14 +125,14 @@ function queueToThumbnailCache(id: string, url: string): void {
     );
 }
 
-function lookupItemInElasticsearch(id: string): Promise<Response> {
+export function lookupItemInElasticsearch(id: string): Promise<Response> {
     console.debug("IN: lookupItemInElasticsearch", id);
     const elasticServer = process.env.ELASTIC_URL || DEFAULT_SEARCH_INDEX;
     const elasticUrl = `${elasticServer}/item/_search?q=id:${id}&_source=id,object`; //
     return fetch(new Request(elasticUrl));
 }
 
-function getImageUrlFromSearchResult(json: Object): Promise<string> {
+export function getImageUrlFromSearchResult(json: Object): Promise<string> {
     console.debug("IN: getImageUrlFromSearchResult");
 
     if (!json.hasOwnProperty("hits")) {
@@ -166,7 +167,7 @@ function getImageUrlFromSearchResult(json: Object): Promise<string> {
     }
 }
 
-function isProbablyURL(s: string): boolean {
+export function isProbablyURL(s: string): boolean {
     return s && s.match(/^https?:\/\//) != null;
 }
 
@@ -174,7 +175,7 @@ function isProbablyURL(s: string): boolean {
 //parameterized because we want provider errors to be cached for a shorter time
 //whereas s3 responses should live there for a long time
 //see LONG_CACHE_TIME and SHORT_CACHE_TIME, above
-function setCacheHeaders(seconds: number, response: express.Response): void {
+export function setCacheHeaders(seconds: number, response: express.Response): void {
     console.debug("IN: setCacheHeaders", seconds)
     const now = new Date().getTime();
     const expirationDateString = new Date(now + 1000 * seconds).toUTCString();
@@ -184,7 +185,7 @@ function setCacheHeaders(seconds: number, response: express.Response): void {
 
 //wrapper promise + race that makes requests give up if they take too long
 //in theory could be used for any promise, but we're using it for provider responses.
-function withTimeout(msecs: number, promise: Promise<any>) {
+export function withTimeout(msecs: number, promise: Promise<any>) {
     console.debug("IN: withTimeout", msecs);
     const timeout = new Promise((resolve, reject) => {
         setTimeout(() => {
@@ -195,7 +196,7 @@ function withTimeout(msecs: number, promise: Promise<any>) {
 }
 
 //issues async request for the image (could be s3 or provider)
-function getRemoteImagePromise(imageUrl: string): Promise<Response> {
+export function getRemoteImagePromise(imageUrl: string): Promise<Response> {
     console.debug("IN: getRemoteImagePromise", imageUrl);
     const request: Request = new Request(imageUrl);
     request.headers.append("User-Agent", "DPLA Image Proxy");
@@ -206,7 +207,7 @@ function getRemoteImagePromise(imageUrl: string): Promise<Response> {
 }
 
 //providers/s3 could set all sorts of weird headers, but we only want to pass along a few
-function setHeadersFromTarget(headers: Headers, response: express.Response) {
+export function setHeadersFromTarget(headers: Headers, response: express.Response) {
     console.debug("IN: setHeadersFromTarget");
     // Reduce headers to just those that we want to pass through
     const headerKeys: string[] = ["content-length", "content-type", "last-modified", "date"];
@@ -218,7 +219,7 @@ function setHeadersFromTarget(headers: Headers, response: express.Response) {
 }
 
 // We have our own ideas of which response codes are appropriate for our client.
-function getImageStatusCode(imgResponse: Response): number {
+export function getImageStatusCode(imgResponse: Response): number {
     switch (imgResponse.status) {
         case 200:
             return 200;
