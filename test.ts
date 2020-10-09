@@ -40,3 +40,15 @@ test('getS3Key', t => {
         t.assert(result === value, `Failed for ${key}`);
     });
 });
+
+test('lookupImageInS3', t => {
+    const s3 = new aws.S3();
+    const request: aws.S3.ListObjectsRequest = {
+        Bucket: "dpla-thumbnails",
+    };
+    s3.listObjects(request, (err, data) => {
+        t.log(data);
+    });
+});
+
+test('getS3Url', t => )
