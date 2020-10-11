@@ -1,6 +1,7 @@
 import test from 'ava';
 import * as thumb from './src/thumb';
 import * as express from 'express';
+import * as crypto from 'crypto';
 import * as aws from 'aws-sdk';
 import {RequestHandler} from 'express-serve-static-core';
 import {PromiseResult} from 'aws-sdk/lib/request';
@@ -49,6 +50,14 @@ test('lookupImageInS3', t => {
     s3.listObjects(request, (err, data) => {
         t.log(data);
     });
+    t.assert(true); //todo finish
 });
 
-test('getS3Url', t => )
+test('getS3Url', async (t) => {
+    const md5 = crypto.createHash('md5');
+    const s3url = await thumb.getS3Url("0000f6ee924d7b60bbfefbc670575653");
+    const response = await fetch(s3url);
+    const buffer = await response.buffer();
+    md5.update(buffer);
+    t.assert(md5.digest("hex") == 'df59792a760a13c04f31ee08fc3adbda');
+});
