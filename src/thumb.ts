@@ -139,7 +139,7 @@ export function getImageUrlFromSearchResult(json: Object): Promise<string> {
         return Promise.reject("Bad response from ElasticSearch.");
     }
 
-    if (json["hits"]["total"] == 0) {
+    if (json["hits"]["total"] < 1) {
         return Promise.reject("No results found.");
     }
 
