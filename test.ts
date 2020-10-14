@@ -72,12 +72,120 @@ test('lookupItemInElasticsearch', async (t) => {
     t.pass();
 });
 
-test('getImageUrlFromSearchResult', async (t) => {
-    t.pass();
+test('getImageUrlFromSearchResult: String', async (t) => {
+    const test1 = {
+        hits: {
+            total: 1,
+            hits: [
+                {
+                    _source: {
+                        object: "http://google.com"
+                    }
+                }
+
+            ]
+        }
+    };
+    const result1 = await thumb.getImageUrlFromSearchResult(test1);
+    t.is(result1, "http://google.com");
+});
+
+test('getImageUrlFromSearchResult: Array', async (t) => {
+    const test = {
+        hits: {
+            total: 1,
+            hits: [
+                {
+                    _source: {
+                        object: ["http://google.com"]
+                    }
+                }
+            ]
+        }
+    };
+    const result = await thumb.getImageUrlFromSearchResult(test);
+    t.is(result, "http://google.com");
+});
+
+test('getImageUrlFromSearchResult: Bad URL', async (t) => {
+    const test = {
+        hits: {
+            total: 1,
+            hits: [
+                {
+                    _source: {
+                        object: ["gopher:hole"]
+                    }
+                }
+            ]
+        }
+    };
+    t.plan(1);
+    thumb.getImageUrlFromSearchResult(test).then(
+        () => t.fail("Promise didn't reject"),
+        (message) => t.is(message, "URL was malformed.")
+    )
+});
+
+test('getImageUrlFromSearchResult: Empty result', async (t) => {
+    const test = {};
+    t.plan(1);
+    thumb.getImageUrlFromSearchResult(test).then(
+        () => t.fail("Promise didn't reject"),
+        (message) => t.is(message, "Bad response from ElasticSearch.")
+    )
+});
+
+test('getImageUrlFromSearchResult: No results', async (t) => {
+    const test = {
+        hits: {
+            total: 0
+        }
+    };
+    t.plan(1);
+    thumb.getImageUrlFromSearchResult(test).then(
+        () => t.fail("Promise didn't reject"),
+        (message) => t.is(message, "No results found.")
+    )
+});
+
+test('getImageUrlFromSearchResult: Record has no thumbnail', async (t) => {
+    const test = {
+        hits: {
+            total: 1,
+            hits: [
+                {
+                    _source: {
+                        foo: ["bar"]
+                    }
+                }
+            ]
+        }
+    };
+    t.plan(1);
+    thumb.getImageUrlFromSearchResult(test).then(
+        () => t.fail("Promise didn't reject"),
+        (message) => t.is(message, "Couldn't find image URL in record.")
+    )
 });
 
 test('isProbablyURL', async (t) => {
-    t.pass();
+    class TestCase  {
+        url: string;
+        result: boolean;
+        constructor(url: string, result: boolean) {
+            this.url = url;
+            this.result = result;
+        }
+    }
+    [
+        new TestCase("foo", false),
+        new TestCase("https://foo.com", true),
+        new TestCase("http://foo.com", true),
+        new TestCase("https://foo.com", true)
+    ].forEach((testCase) => {
+        t.is(thumb.isProbablyURL(testCase.url), testCase.result);
+    });
 });
 
 test('getCacheHeaders', async (t) => {
