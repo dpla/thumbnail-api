@@ -5,7 +5,7 @@
   "scripts": {
     "build": "tsc",
     "start": "tsc && node dist/app.js",
-    "test": "ava"
+    "test": "ava -v -T 2m"
   },
   "dependencies": {
     "@types/async": "^3.2.3",
