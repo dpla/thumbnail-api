@@ -38,12 +38,12 @@ export const thumb: RequestHandler = async function (req: express.Request, res: 
         .then(
             //success, get image from s3
             (response) => {
-                setCacheHeaders(LONG_CACHE_TIME, res);
+                res.set(getCacheHeaders(LONG_CACHE_TIME));
                 return getS3Url(itemId)
             },
             //failure, proxy image from contributor, queue cache request
             (err: string) => {
-                setCacheHeaders(SHORT_CACHE_TIME, res);
+                res.set(getCacheHeaders(SHORT_CACHE_TIME));
                 return lookupItemInElasticsearch(itemId)
                     .then((response: Response) => response.json())
                     .then((result) => getImageUrlFromSearchResult(result))
@@ -57,8 +57,8 @@ export const thumb: RequestHandler = async function (req: express.Request, res: 
         .then((url: string) => getRemoteImagePromise(url))
         //when it responds, pass the request info and image data along.
         .then((response: Response) => {
-            res.status(getImageStatusCode(response));
-            setHeadersFromTarget(response.headers, res)
+            res.status(getImageStatusCode(response.status));
+            res.set(getHeadersFromTarget(response.headers));
             console.debug("Piping response.")
             response.body.pipe(res, {end: true});
             return;
@@ -175,12 +175,15 @@ export function isProbablyURL(s: string): boolean {
 //parameterized because we want provider errors to be cached for a shorter time
 //whereas s3 responses should live there for a long time
 //see LONG_CACHE_TIME and SHORT_CACHE_TIME, above
-export function setCacheHeaders(seconds: number, response: express.Response): void {
+export function getCacheHeaders(seconds: number): object {
     console.debug("IN: setCacheHeaders", seconds)
     const now = new Date().getTime();
     const expirationDateString = new Date(now + 1000 * seconds).toUTCString();
-    response.setHeader("Cache-Control", `public, max-age=${seconds}`);
-    response.setHeader("Expires", expirationDateString);
+    const cacheControl = `public, max-age=${seconds}`;
+    return {
+        "Cache-Control": cacheControl,
+        "Expires": expirationDateString
+    };
 }
 
 //wrapper promise + race that makes requests give up if they take too long
@@ -207,20 +210,28 @@ export function getRemoteImagePromise(imageUrl: string): Promise<Response> {
 }
 
 //providers/s3 could set all sorts of weird headers, but we only want to pass along a few
-export function setHeadersFromTarget(headers: Headers, response: express.Response) {
+export function getHeadersFromTarget(headers: Headers): object {
     console.debug("IN: setHeadersFromTarget");
+
+    const result = new Object();
+
     // Reduce headers to just those that we want to pass through
-    const headerKeys: string[] = ["content-length", "content-type", "last-modified", "date"];
-    headers.forEach((value: string, name) => {
-        if (headerKeys.indexOf(name.toLowerCase()) != -1) {
-            response.setHeader(name, value);
-        }
-    });
+    const contentEncoding = "Content-Encoding";
+    if (headers.has(contentEncoding)) {
+        result[contentEncoding] = headers.get(contentEncoding);
+    }
+
+    const lastModified = "Last-Modified";
+    if (headers.has(lastModified)) {
+        result[lastModified] = headers.get(lastModified);
+    }
+
+    return result;
 }
 
 // We have our own ideas of which response codes are appropriate for our client.
-export function getImageStatusCode(imgResponse: Response): number {
-    switch (imgResponse.status) {
+export function getImageStatusCode(status: number): number {
+    switch (status) {
         case 200:
             return 200;
         case 404:
