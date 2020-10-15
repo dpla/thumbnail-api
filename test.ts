@@ -52,7 +52,6 @@ test('lookupImageInS3', async t => {
     const key = /([a-f0-9]{32}).jpg$/.exec(path)[1];
     //this will throw if it doesn't find one
     const result = await thumb.lookupImageInS3(key);
-    t.pass(); 
 });
 
 test('getS3Url', async (t) => {
@@ -191,12 +190,20 @@ test('isProbablyURL', async (t) => {
 test('getCacheHeaders', async (t) => {
     const result = thumb.getCacheHeaders(2);
     t.is(result['Cache-Control'], `public, max-age=2`);
-    t.regex(result['Expires'], /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun),\W\d{2}\W(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\W\d{4}\W\d{2}:\d{2}:\d{2}\WGMT$/);
+    t.regex(
+        result['Expires'], 
+        /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun),\W\d{2}\W(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\W\d{4}\W\d{2}:\d{2}:\d{2}\WGMT$/);
     t.pass();
 });
 
-test('withTimeout', async (t) => {
-    t.pass();
+test('withTimeout: pass', async (t) => {
+    const result = await thumb.withTimeout(3000, Promise.resolve("foo"));
+    t.is(result, "foo");
+});
+
+test('withTimeout: too slow', async (t) => {
+    const result = await thumb.withTimeout(1000, new Promise(resolve => setTimeout(resolve, 5000)));
+    t.is(result, "foo");
 });
 
 test('getRemoteImagePromise', async (t) => {
