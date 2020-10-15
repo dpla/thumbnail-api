@@ -1,14 +1,9 @@
 import test from 'ava';
 import * as thumb from './src/thumb';
-import * as express from 'express';
 import * as crypto from 'crypto';
 import * as aws from 'aws-sdk';
-import {RequestHandler} from 'express-serve-static-core';
-import {PromiseResult} from 'aws-sdk/lib/request';
 import fetch from 'node-fetch';
-import {Request, Response, Headers} from "node-fetch";
-import { assert } from 'console';
-
+import {Headers} from "node-fetch";
 
 test('getItemId', t => {
     const testData: object = {
@@ -27,7 +22,6 @@ test('getItemId', t => {
         const result = thumb.getItemId(key);
         t.is(result, value, `Failed for ${key}`);
     });
-
 });
 
 test('getS3Key', t => {
@@ -52,6 +46,7 @@ test('lookupImageInS3', async t => {
     const key = /([a-f0-9]{32}).jpg$/.exec(path)[1];
     //this will throw if it doesn't find one
     const result = await thumb.lookupImageInS3(key);
+    t.pass(); //this will fail if the promise rejects.
 });
 
 test('getS3Url', async (t) => {
@@ -193,7 +188,6 @@ test('getCacheHeaders', async (t) => {
     t.regex(
         result['Expires'], 
         /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun),\W\d{2}\W(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\W\d{4}\W\d{2}:\d{2}:\d{2}\WGMT$/);
-    t.pass();
 });
 
 test('withTimeout: pass', async (t) => {
@@ -202,12 +196,27 @@ test('withTimeout: pass', async (t) => {
 });
 
 test('withTimeout: too slow', async (t) => {
-    const result = await thumb.withTimeout(1000, new Promise(resolve => setTimeout(resolve, 5000)));
-    t.is(result, "foo");
+    t.plan(1);
+    await thumb.withTimeout(1000, new Promise(resolve => setTimeout(resolve, 5000)))
+        .then(
+            () => t.fail("Promise didn't reject"),
+            (response) => t.is(response.message, "Response from server timed out.")
+        );
 });
 
 test('getRemoteImagePromise', async (t) => {
-    t.pass();
+    const url = "https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png";
+    const result = await thumb.getRemoteImagePromise(url);
+    t.is(result.status, 200, "Didn't receive image in body.");
+});
+
+test('getRemoteImagePromise: Bad url', async (t) => {
+    const url = "https://localhost/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png";
+    t.plan(1);
+    await thumb.getRemoteImagePromise(url).then(
+        () => t.fail(),
+        (response) => t.pass()
+    );
 });
 
 test('setHeadersFromTarget', async (t) => {
