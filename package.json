@@ -3,8 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
+    "build": "tsc",
     "start": "tsc && node dist/app.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "ava -v -T 2m"
   },
   "dependencies": {
     "@types/async": "^3.2.3",
@@ -23,7 +24,17 @@
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^4.3.0",
     "@typescript-eslint/parser": "^4.3.0",
+    "ava": "^3.13.0",
     "eslint": "^7.10.0",
+    "ts-node": "^9.0.0",
     "typescript": "^3.9.7"
+  },
+  "ava": {
+    "extensions": [
+      "ts"
+    ],
+    "require": [
+      "ts-node/register"
+    ]
   }
 }
