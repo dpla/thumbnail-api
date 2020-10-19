@@ -4,6 +4,8 @@ import {RequestHandler} from 'express-serve-static-core';
 import {PromiseResult} from 'aws-sdk/lib/request';
 import fetch from 'node-fetch';
 import {Request, Response, Headers} from "node-fetch";
+import { Client, ApiResponse } from '@elastic/elasticsearch';
+
 
 const LONG_CACHE_TIME: number = 60 * 60 * 24 * 30; //seconds
 const SHORT_CACHE_TIME: number = 60; //seconds
@@ -12,8 +14,16 @@ const CACHE_BUCKET: string = "dpla-thumbnails";
 const PATH_PATTERN: RegExp = /^\/thumb\/([a-f0-9]{32})$/;
 const DEFAULT_SEARCH_INDEX: string = "http://search.internal.dp.la:9200/dpla_alias";
 
+
 const s3: aws.S3 = new aws.S3();
 const sqs: aws.SQS = new aws.SQS({region: "us-east-1"});
+
+const esClient: Client = new Client({
+  node: process.env.ELASTIC_URL || DEFAULT_SEARCH_INDEX,
+  maxRetries: 5,
+  requestTimeout: 60000,
+  sniffOnStart: true
+});
 
 export const thumb: RequestHandler = async function (req: express.Request, res: express.Response) {
 
@@ -125,11 +135,14 @@ export function queueToThumbnailCache(id: string, url: string): void {
     );
 }
 
-export function lookupItemInElasticsearch(id: string): Promise<Response> {
+export function lookupItemInElasticsearch(id: string): Promise<ApiResponse> {
     console.debug("IN: lookupItemInElasticsearch", id);
-    const elasticServer = process.env.ELASTIC_URL || DEFAULT_SEARCH_INDEX;
-    const elasticUrl = `${elasticServer}/item/_search?q=id:${id}&_source=id,object`; //
-    return fetch(new Request(elasticUrl));
+    return esClient.get({
+        id: id,
+        index: "dpla_alias",
+        type: "item",
+        _source: ["id", "object"]
+    });
 }
 
 export function getImageUrlFromSearchResult(json: Object): Promise<string> {
