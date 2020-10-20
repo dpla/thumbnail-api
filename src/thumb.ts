@@ -152,7 +152,6 @@ export function getImageUrlFromSearchResult(record: Record<string, any>): Promis
     //rather than throwing an exception when the property doesn't exist
 
     const obj: any = record?._source?.object;
-    console.log(obj);
     let url: string = "";
 
     if (obj && Array.isArray(obj)) {
@@ -163,7 +162,7 @@ export function getImageUrlFromSearchResult(record: Record<string, any>): Promis
 
     } else if (record?._source) {
         return Promise.reject("Couldn't find image URL in record.")
-        
+
     } else {
         return Promise.reject("No result found.");
     }
