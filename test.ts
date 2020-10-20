@@ -68,16 +68,8 @@ test('lookupItemInElasticsearch', async (t) => {
 
 test('getImageUrlFromSearchResult: String', async (t) => {
     const test1 = {
-        hits: {
-            total: 1,
-            hits: [
-                {
-                    _source: {
-                        object: "http://google.com"
-                    }
-                }
-
-            ]
+        _source: {
+            object: "http://google.com"
         }
     };
     const result1 = await thumb.getImageUrlFromSearchResult(test1);
@@ -86,15 +78,8 @@ test('getImageUrlFromSearchResult: String', async (t) => {
 
 test('getImageUrlFromSearchResult: Array', async (t) => {
     const test = {
-        hits: {
-            total: 1,
-            hits: [
-                {
-                    _source: {
-                        object: ["http://google.com"]
-                    }
-                }
-            ]
+         _source: {
+            object: ["http://google.com"]
         }
     };
     const result = await thumb.getImageUrlFromSearchResult(test);
@@ -103,15 +88,8 @@ test('getImageUrlFromSearchResult: Array', async (t) => {
 
 test('getImageUrlFromSearchResult: Bad URL', async (t) => {
     const test = {
-        hits: {
-            total: 1,
-            hits: [
-                {
-                    _source: {
-                        object: ["gopher:hole"]
-                    }
-                }
-            ]
+        _source: {
+            object: ["gopher:hole"]
         }
     };
     t.plan(1);
@@ -126,7 +104,7 @@ test('getImageUrlFromSearchResult: Empty result', async (t) => {
     t.plan(1);
     thumb.getImageUrlFromSearchResult(test).then(
         () => t.fail("Promise didn't reject"),
-        (message) => t.is(message, "Bad response from ElasticSearch.")
+        (message) => t.is(message, "No result found.")
     )
 });
 
@@ -139,21 +117,14 @@ test('getImageUrlFromSearchResult: No results', async (t) => {
     t.plan(1);
     thumb.getImageUrlFromSearchResult(test).then(
         () => t.fail("Promise didn't reject"),
-        (message) => t.is(message, "No results found.")
+        (message) => t.is(message, "No result found.")
     )
 });
 
 test('getImageUrlFromSearchResult: Record has no thumbnail', async (t) => {
     const test = {
-        hits: {
-            total: 1,
-            hits: [
-                {
-                    _source: {
-                        foo: ["bar"]
-                    }
-                }
-            ]
+        _source: {
+            foo: ["bar"]
         }
     };
     t.plan(1);
@@ -174,6 +145,7 @@ test('isProbablyURL', async (t) => {
     }
     [
         new TestCase("foo", false),
+        new TestCase("gopher:hole", false),
         new TestCase("https://foo.com", true),
         new TestCase("http://foo.com", true),
         new TestCase("https://foo.com", true)

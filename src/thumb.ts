@@ -55,7 +55,7 @@ export const thumb: RequestHandler = async function (req: express.Request, res: 
             (err: string) => {
                 res.set(getCacheHeaders(SHORT_CACHE_TIME));
                 return lookupItemInElasticsearch(itemId)
-                    .then((response: Response) => response.json())
+                    .then((response: ApiResponse) => response.body)
                     .then((result) => getImageUrlFromSearchResult(result))
                     .then((imageUrl) => {
                         queueToThumbnailCache(itemId, imageUrl);
@@ -145,21 +145,14 @@ export function lookupItemInElasticsearch(id: string): Promise<ApiResponse> {
     });
 }
 
-export function getImageUrlFromSearchResult(json: Object): Promise<string> {
+export function getImageUrlFromSearchResult(record: Record<string, any>): Promise<string> {
     console.debug("IN: getImageUrlFromSearchResult");
-
-    if (!json.hasOwnProperty("hits")) {
-        return Promise.reject("Bad response from ElasticSearch.");
-    }
-
-    if (json["hits"]["total"] < 1) {
-        return Promise.reject("No results found.");
-    }
 
     //using ?. operator short circuts the result in object to "undefined"
     //rather than throwing an exception when the property doesn't exist
 
-    const obj: any = json?.["hits"]?.hits?.[0]?._source?.object;
+    const obj: any = record?._source?.object;
+    console.log(obj);
     let url: string = "";
 
     if (obj && Array.isArray(obj)) {
@@ -168,8 +161,11 @@ export function getImageUrlFromSearchResult(json: Object): Promise<string> {
     } else if (obj && typeof obj == "string") {
         url = obj;
 
+    } else if (record?._source) {
+        return Promise.reject("Couldn't find image URL in record.")
+        
     } else {
-        return Promise.reject("Couldn't find image URL in record.");
+        return Promise.reject("No result found.");
     }
 
     if (!isProbablyURL(url)) {
