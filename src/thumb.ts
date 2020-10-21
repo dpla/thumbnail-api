@@ -4,16 +4,15 @@ import {RequestHandler} from 'express-serve-static-core';
 import {PromiseResult} from 'aws-sdk/lib/request';
 import fetch from 'node-fetch';
 import {Request, Response, Headers} from "node-fetch";
-import { Client, ApiResponse } from '@elastic/elasticsearch';
-
+import {Client, ApiResponse} from '@elastic/elasticsearch';
+import {ResponseError} from "@elastic/elasticsearch/lib/errors";
 
 const LONG_CACHE_TIME: number = 60 * 60 * 24 * 30; //seconds
 const SHORT_CACHE_TIME: number = 60; //seconds
 const IMAGE_REQUEST_TIMEOUT: number = 10000; //ms
 const CACHE_BUCKET: string = "dpla-thumbnails";
 const PATH_PATTERN: RegExp = /^\/thumb\/([a-f0-9]{32})$/;
-const DEFAULT_SEARCH_INDEX: string = "http://search.internal.dp.la:9200/dpla_alias";
-
+const DEFAULT_SEARCH_INDEX: string = "http://search.internal.dp.la:9200/";
 
 const s3: aws.S3 = new aws.S3();
 const sqs: aws.SQS = new aws.SQS({region: "us-east-1"});
@@ -38,48 +37,91 @@ export const thumb: RequestHandler = async function (req: express.Request, res: 
     console.debug("Serving request for " + itemId);
 
     //todo wire in some catches
-
+    //this promise chain essentially decides whether we're serving from the cache
+    //or from the contributor and calls the appropriate handler.
     Promise
         //kicking off the promise chain with one that always works
         .resolve(itemId)
         //ask S3 if it has a copy of the image
-        .then((itemId: string) => lookupImageInS3(itemId))
+        .then(
+            (itemId: string) => lookupImageInS3(itemId)
+            //process the response from s3
+        )
         //process the response from s3
         .then(
             //success, get image from s3
             (response) => {
-                res.set(getCacheHeaders(LONG_CACHE_TIME));
-                return getS3Url(itemId)
+                console.debug(`${itemId} found in S3.`);
+                serveItemFromS3(itemId, response);
             },
             //failure, proxy image from contributor, queue cache request
             (err: string) => {
-                res.set(getCacheHeaders(SHORT_CACHE_TIME));
-                return lookupItemInElasticsearch(itemId)
-                    .then((response: ApiResponse) => response.body)
-                    .then((result) => getImageUrlFromSearchResult(result))
+                console.debug(`Error from S3 for ${itemId}.`, err);
+                proxyItemFromContributor(itemId, res);
+            }
+        );
+}
+
+export function proxyItemFromContributor(itemId, expressResponse) {
+    expressResponse.set(getCacheHeaders(SHORT_CACHE_TIME));
+    lookupItemInElasticsearch(itemId)
+        .then(
+            // found in es. extract response from body
+            (response: ApiResponse) => response.body,
+            // not found. return an error
+            // elasticsearch will return an error for a nonexistent item id
+            (error: ResponseError) => {
+                console.debug(`Caught error for ${itemId} from ElasticSearch.`, error);
+                switch (error.statusCode) {
+                    case 404:
+                        expressResponse.status(404);
+                        expressResponse.end();
+                        return;
+                        //todo handle more status codes?
+                    default:
+                        throw error
+                }
+            })
+        .then(
+            (result) => {
+                if (!result) {
+                    throw Promise.reject(Error(`Result from ElasticSearch undefined for ${itemId}`));
+                }
+                return getImageUrlFromSearchResult(result)
                     .then((imageUrl) => {
                         queueToThumbnailCache(itemId, imageUrl);
-                        return Promise.resolve(imageUrl)
-                    })
+                        return Promise.resolve(imageUrl);
+                        })
             })
-        //now we know where we're loading the image from.
-        //initiate the connection to the remote server
         .then((url: string) => getRemoteImagePromise(url))
         //when it responds, pass the request info and image data along.
         .then((response: Response) => {
-            res.status(getImageStatusCode(response.status));
-            res.set(getHeadersFromTarget(response.headers));
+            expressResponse.status(getImageStatusCode(response.status));
+            expressResponse.set(getHeadersFromTarget(response.headers));
             console.debug("Piping response.")
-            response.body.pipe(res, {end: true});
+            response.body.pipe(expressResponse, {end: true});
             return;
         })
         .catch((reason) => {
             //overall runtime error catchall
             console.error(`Request for ${itemId} landed in top-level catch for ${reason}`);
-            res.status(502);
-            res.end();
+            expressResponse.status(502);
+            expressResponse.end();
             return;
         });
+}
+
+export function serveItemFromS3(itemId, expressResponse) {
+    expressResponse.set(getCacheHeaders(LONG_CACHE_TIME));
+    getS3Url(itemId)
+        .then((url) => getRemoteImagePromise(url))
+        .then((response: Response) => {
+            expressResponse.status(getImageStatusCode(response.status));
+            expressResponse.set(getHeadersFromTarget(response.headers));
+            console.debug("Piping response.")
+            response.body.pipe(expressResponse, {end: true});
+            return;
+        })
 }
 
 //item ids are always the same length and have hex characters in them
@@ -125,7 +167,7 @@ export function queueToThumbnailCache(id: string, url: string): void {
     sqs.sendMessage(
         {
             MessageBody: JSON.stringify(msg),
-            QueueUrl: `${process.env.SQS_URL}/thumbp-image`
+            QueueUrl: `${process.env.SQS_URL}/thumbp-image` //todo should this be the whole url
         },
         (error: aws.AWSError, data: aws.SQS.SendMessageResult): void => {
             if (error) {
@@ -147,8 +189,7 @@ export function lookupItemInElasticsearch(id: string): Promise<ApiResponse> {
 
 export function getImageUrlFromSearchResult(record: Record<string, any>): Promise<string> {
     console.debug("IN: getImageUrlFromSearchResult");
-
-    //using ?. operator short circuts the result in object to "undefined"
+    //using ?. operator short circuits the result in object to "undefined"
     //rather than throwing an exception when the property doesn't exist
 
     const obj: any = record?._source?.object;
@@ -207,7 +248,7 @@ export function withTimeout(msecs: number, promise: Promise<any>) {
 }
 
 //issues async request for the image (could be s3 or provider)
-export function getRemoteImagePromise(imageUrl: string): Promise<Response> {
+export function getRemoteImagePromise(imageUrl: string): Promise<Response|any> {
     console.debug("IN: getRemoteImagePromise", imageUrl);
     const request: Request = new Request(imageUrl);
     request.headers.append("User-Agent", "DPLA Image Proxy");
@@ -221,7 +262,7 @@ export function getRemoteImagePromise(imageUrl: string): Promise<Response> {
 export function getHeadersFromTarget(headers: Headers): object {
     console.debug("IN: setHeadersFromTarget");
 
-    const result = new Object();
+    const result = {};
 
     // Reduce headers to just those that we want to pass through
     const contentEncoding = "Content-Encoding";
