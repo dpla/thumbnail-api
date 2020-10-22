@@ -23,13 +23,13 @@ const esClient: Client = new Client({
   sniffOnStart: true
 });
 
+//main entry point
 export const thumb: RequestHandler = async function (req: express.Request, res: express.Response) {
 
     const itemId = getItemId(req.path);
 
     if (!itemId) {
-        res.sendStatus(400);
-        res.end();
+        sendError(res, itemId, 400, "Bad item ID.");
         return;
     }
 
@@ -41,33 +41,57 @@ export const thumb: RequestHandler = async function (req: express.Request, res: 
         //success, get image from s3
         console.debug(`${itemId} found in S3.`);
         await serveItemFromS3(itemId, res);
+
     } catch (e) {
         //failure, proxy image from contributor, queue cache request
         console.debug(`Error from S3 for ${itemId}.`, e);
-        await proxyItemFromContributor(itemId, res);
+
+        //if we already started sending a response, this time we're doomed.
+        if (res.writableEnded) {
+            sendError(res, itemId, 502);
+
+        } else {
+            try {
+                await proxyItemFromContributor(itemId, res);
+
+            } catch (error) {
+                if (!res.headersSent) {
+                    sendError(res, itemId, 502, error);
+                }
+
+            }
+        }
     }
 }
 
 export function sendError(res: express.Response, itemId: string, code: number, error?: any) {
-    console.debug(`Sending ${code} for ${itemId}`, error);
+    console.info(`Sending ${code} for ${itemId}`, error);
     res.status(code);
     res.end();
 }
 
 export async function proxyItemFromContributor(itemId, expressResponse): Promise<void> {
+    //we only want the cache to have the proxied image from the contributor for a short amount
+    //because it won't have been sized down
     expressResponse.set(getCacheHeaders(SHORT_CACHE_TIME));
+
     let esResponse: ApiResponse = undefined;
+
     try {
         esResponse = await lookupItemInElasticsearch(itemId);
 
     } catch (error) {
         console.debug(`Caught error for ${itemId} from ElasticSearch.`, error);
 
-        if (error.statusCode && error.statusCode == 404) {
+        if (error?.statusCode == 404) {
+            console.debug("Was 404.");
             sendError(expressResponse, itemId, 404);
+            return Promise.reject();
 
         } else {
-            throw error;
+            // couldn't connect or something
+            sendError(expressResponse, itemId, 502, error);
+            return Promise.reject();
         }
     }
 
@@ -79,7 +103,7 @@ export async function proxyItemFromContributor(itemId, expressResponse): Promise
         expressResponse.status(getImageStatusCode(remoteImageResponse.status));
         expressResponse.set(getHeadersFromTarget(remoteImageResponse.headers));
         console.debug("Piping response.");
-        expressResponse.body.pipe(expressResponse, {end: true});
+        remoteImageResponse.body.pipe(expressResponse, {end: true});
 
     } catch (error) {
         sendError(expressResponse,  itemId, getImageStatusCode(error.statusCode), error);
@@ -111,7 +135,7 @@ export async function getS3Url(id: string): Promise<string> {
     return s3.getSignedUrlPromise("getObject", params);
 }
 
-// not marking this as async be
+// not marking this as async because it's fire and forget.
 export function queueToThumbnailCache(id: string, url: string): Promise<void> {
     console.debug("IN: queueToThumbnailCache", id, url);
     if (!process.env.SQS_URL) return;
