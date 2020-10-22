@@ -5,7 +5,6 @@ import {PromiseResult} from 'aws-sdk/lib/request';
 import fetch from 'node-fetch';
 import {Request, Response, Headers} from "node-fetch";
 import {Client, ApiResponse} from '@elastic/elasticsearch';
-import {ResponseError} from "@elastic/elasticsearch/lib/errors";
 
 const LONG_CACHE_TIME: number = 60 * 60 * 24 * 30; //seconds
 const SHORT_CACHE_TIME: number = 60; //seconds
@@ -36,80 +35,55 @@ export const thumb: RequestHandler = async function (req: express.Request, res: 
 
     console.debug("Serving request for " + itemId);
 
-    //this promise chain essentially decides whether we're serving from the cache
-    //or from the contributor and calls the appropriate handler.
-    Promise
-        //kicking off the promise chain with one that always works
-        .resolve(itemId)
+    try {
         //ask S3 if it has a copy of the image
-        .then(
-            (itemId: string) => lookupImageInS3(itemId)
-            //process the response from s3
-            //this can't fail, so no need to handle errors
-        )
-        //process the response from s3
-        .then(
-            //success, get image from s3
-            (response) => {
-                console.debug(`${itemId} found in S3.`);
-                serveItemFromS3(itemId, response);
-            },
-            //failure, proxy image from contributor, queue cache request
-            (err: string) => {
-                console.debug(`Error from S3 for ${itemId}.`, err);
-                proxyItemFromContributor(itemId, res);
-            }
-        );
+        const s3response = await lookupImageInS3(itemId);
+        //success, get image from s3
+        console.debug(`${itemId} found in S3.`);
+        await serveItemFromS3(itemId, res);
+    } catch (e) {
+        //failure, proxy image from contributor, queue cache request
+        console.debug(`Error from S3 for ${itemId}.`, e);
+        await proxyItemFromContributor(itemId, res);
+    }
 }
 
-export function proxyItemFromContributor(itemId, expressResponse) {
+export function sendError(res: express.Response, itemId: string, code: number, error?: any) {
+    console.debug(`Sending ${code} for ${itemId}`, error);
+    res.status(code);
+    res.end();
+}
+
+export async function proxyItemFromContributor(itemId, expressResponse): Promise<void> {
     expressResponse.set(getCacheHeaders(SHORT_CACHE_TIME));
-    lookupItemInElasticsearch(itemId)
-        .then(
-            // found in es. extract response from body
-            (response: ApiResponse) => response.body,
-            // not found. return an error
-            // elasticsearch will return an error for a nonexistent item id
-            (error: ResponseError) => {
-                console.debug(`Caught error for ${itemId} from ElasticSearch.`, error);
-                switch (error.statusCode) {
-                    case 404:
-                        console.debug(`404 for ${itemId}`);
-                        expressResponse.status(404);
-                        expressResponse.end();
-                        return;
-                        //todo handle more status codes?
-                    default:
-                        throw error
-                }
-            })
-        .then(
-            (result) => {
-                if (!result) {
-                    throw Promise.reject(Error(`Result from ElasticSearch undefined for ${itemId}`));
-                }
-                return getImageUrlFromSearchResult(result)
-                    .then((imageUrl) => {
-                        queueToThumbnailCache(itemId, imageUrl);
-                        return Promise.resolve(imageUrl);
-                        })
-            })
-        .then((url: string) => getRemoteImagePromise(url))
-        //when it responds, pass the request info and image data along.
-        .then((response: Response) => {
-            expressResponse.status(getImageStatusCode(response.status));
-            expressResponse.set(getHeadersFromTarget(response.headers));
-            console.debug("Piping response.")
-            response.body.pipe(expressResponse, {end: true});
-            return;
-        })
-        .catch((reason) => {
-            //overall runtime error catchall
-            console.error(`Request for ${itemId} landed in top-level catch for ${reason}`);
-            expressResponse.status(502);
-            expressResponse.end();
-            return;
-        });
+    let esResponse: ApiResponse = undefined;
+    try {
+        esResponse = await lookupItemInElasticsearch(itemId);
+
+    } catch (error) {
+        console.debug(`Caught error for ${itemId} from ElasticSearch.`, error);
+
+        if (error.statusCode && error.statusCode == 404) {
+            sendError(expressResponse, itemId, 404);
+
+        } else {
+            throw error;
+        }
+    }
+
+    const imageUrl: string = await getImageUrlFromSearchResult(esResponse?.body);
+    queueToThumbnailCache(itemId, imageUrl); //don't wait on this
+
+    try {
+        const remoteImageResponse: Response = await getRemoteImagePromise(imageUrl);
+        expressResponse.status(getImageStatusCode(remoteImageResponse.status));
+        expressResponse.set(getHeadersFromTarget(remoteImageResponse.headers));
+        console.debug("Piping response.");
+        expressResponse.body.pipe(expressResponse, {end: true});
+
+    } catch (error) {
+        sendError(expressResponse,  itemId, getImageStatusCode(error.statusCode), error);
+    }
 }
 
 export async function serveItemFromS3(itemId, expressResponse): Promise<void> {
@@ -137,7 +111,8 @@ export async function getS3Url(id: string): Promise<string> {
     return s3.getSignedUrlPromise("getObject", params);
 }
 
-export async function queueToThumbnailCache(id: string, url: string): Promise<void> {
+// not marking this as async be
+export function queueToThumbnailCache(id: string, url: string): Promise<void> {
     console.debug("IN: queueToThumbnailCache", id, url);
     if (!process.env.SQS_URL) return;
 
@@ -146,7 +121,7 @@ export async function queueToThumbnailCache(id: string, url: string): Promise<vo
     sqs.sendMessage(
         {
             MessageBody: JSON.stringify(msg),
-            QueueUrl: `${process.env.SQS_URL}/thumbp-image` //todo should this be the whole url
+            QueueUrl: process.env.SQS_URL
         },
         (error: aws.AWSError, data: aws.SQS.SendMessageResult): void => {
             if (error) {
@@ -167,10 +142,11 @@ export async function lookupItemInElasticsearch(id: string): Promise<ApiResponse
 
 export async function getImageUrlFromSearchResult(record: Record<string, any>): Promise<string> {
     console.debug("IN: getImageUrlFromSearchResult");
+
     //using ?. operator short circuits the result in object to "undefined"
     //rather than throwing an exception when the property doesn't exist
-
     const obj: any = record?._source?.object;
+
     let url: string = "";
 
     if (obj && Array.isArray(obj)) {
@@ -179,11 +155,8 @@ export async function getImageUrlFromSearchResult(record: Record<string, any>): 
     } else if (obj && typeof obj == "string") {
         url = obj;
 
-    } else if (record?._source) {
-        return Promise.reject("Couldn't find image URL in record.")
-
     } else {
-        return Promise.reject("No result found.");
+        return Promise.reject("Couldn't find image URL in record.");
     }
 
     if (!isProbablyURL(url)) {
@@ -191,8 +164,7 @@ export async function getImageUrlFromSearchResult(record: Record<string, any>): 
 
     } else {
         return Promise.resolve(url);
-    }
-}
+    }}
 
 //wrapper promise + race that makes requests give up if they take too long
 //in theory could be used for any promise, but we're using it for provider responses.

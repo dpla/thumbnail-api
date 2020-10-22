@@ -89,7 +89,7 @@ test('getImageUrlFromSearchResult: Array', async (t) => {
 test('getImageUrlFromSearchResult: Bad URL', async (t) => {
     const test = {
         _source: {
-            object: ["gopher:hole"]
+            object: ["blah:hole"]
         }
     };
     t.plan(1);
@@ -104,20 +104,7 @@ test('getImageUrlFromSearchResult: Empty result', async (t) => {
     t.plan(1);
     await thumb.getImageUrlFromSearchResult(test).then(
         () => t.fail("Promise didn't reject"),
-        (message) => t.is(message, "No result found.")
-    )
-});
-
-test('getImageUrlFromSearchResult: No results', async (t) => {
-    const test = {
-        hits: {
-            total: 0
-        }
-    };
-    t.plan(1);
-    await thumb.getImageUrlFromSearchResult(test).then(
-        () => t.fail("Promise didn't reject"),
-        (message) => t.is(message, "No result found.")
+        (message) => t.is(message, "Couldn't find image URL in record.")
     )
 });
 
