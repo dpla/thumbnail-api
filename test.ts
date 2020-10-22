@@ -58,26 +58,10 @@ test('getS3Url', async (t) => {
     t.is(md5.digest("hex"), 'df59792a760a13c04f31ee08fc3adbda');
 });
 
-test('queueToThumbnailCache', async (t) => {
-    t.pass();
-});
-
-test('lookupItemInElasticsearch', async (t) => {
-    t.pass();
-});
-
 test('getImageUrlFromSearchResult: String', async (t) => {
     const test1 = {
-        hits: {
-            total: 1,
-            hits: [
-                {
-                    _source: {
-                        object: "http://google.com"
-                    }
-                }
-
-            ]
+        _source: {
+            object: "http://google.com"
         }
     };
     const result1 = await thumb.getImageUrlFromSearchResult(test1);
@@ -86,15 +70,8 @@ test('getImageUrlFromSearchResult: String', async (t) => {
 
 test('getImageUrlFromSearchResult: Array', async (t) => {
     const test = {
-        hits: {
-            total: 1,
-            hits: [
-                {
-                    _source: {
-                        object: ["http://google.com"]
-                    }
-                }
-            ]
+         _source: {
+            object: ["http://google.com"]
         }
     };
     const result = await thumb.getImageUrlFromSearchResult(test);
@@ -103,19 +80,12 @@ test('getImageUrlFromSearchResult: Array', async (t) => {
 
 test('getImageUrlFromSearchResult: Bad URL', async (t) => {
     const test = {
-        hits: {
-            total: 1,
-            hits: [
-                {
-                    _source: {
-                        object: ["gopher:hole"]
-                    }
-                }
-            ]
+        _source: {
+            object: ["blah:hole"]
         }
     };
     t.plan(1);
-    thumb.getImageUrlFromSearchResult(test).then(
+    await thumb.getImageUrlFromSearchResult(test).then(
         () => t.fail("Promise didn't reject"),
         (message) => t.is(message, "URL was malformed.")
     )
@@ -124,40 +94,20 @@ test('getImageUrlFromSearchResult: Bad URL', async (t) => {
 test('getImageUrlFromSearchResult: Empty result', async (t) => {
     const test = {};
     t.plan(1);
-    thumb.getImageUrlFromSearchResult(test).then(
+    await thumb.getImageUrlFromSearchResult(test).then(
         () => t.fail("Promise didn't reject"),
-        (message) => t.is(message, "Bad response from ElasticSearch.")
-    )
-});
-
-test('getImageUrlFromSearchResult: No results', async (t) => {
-    const test = {
-        hits: {
-            total: 0
-        }
-    };
-    t.plan(1);
-    thumb.getImageUrlFromSearchResult(test).then(
-        () => t.fail("Promise didn't reject"),
-        (message) => t.is(message, "No results found.")
+        (message) => t.is(message, "Couldn't find image URL in record.")
     )
 });
 
 test('getImageUrlFromSearchResult: Record has no thumbnail', async (t) => {
     const test = {
-        hits: {
-            total: 1,
-            hits: [
-                {
-                    _source: {
-                        foo: ["bar"]
-                    }
-                }
-            ]
+        _source: {
+            foo: ["bar"]
         }
     };
     t.plan(1);
-    thumb.getImageUrlFromSearchResult(test).then(
+    await thumb.getImageUrlFromSearchResult(test).then(
         () => t.fail("Promise didn't reject"),
         (message) => t.is(message, "Couldn't find image URL in record.")
     )
@@ -174,6 +124,7 @@ test('isProbablyURL', async (t) => {
     }
     [
         new TestCase("foo", false),
+        new TestCase("gopher:hole", false),
         new TestCase("https://foo.com", true),
         new TestCase("http://foo.com", true),
         new TestCase("https://foo.com", true)
