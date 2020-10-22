@@ -93,7 +93,7 @@ test('getImageUrlFromSearchResult: Bad URL', async (t) => {
         }
     };
     t.plan(1);
-    thumb.getImageUrlFromSearchResult(test).then(
+    await thumb.getImageUrlFromSearchResult(test).then(
         () => t.fail("Promise didn't reject"),
         (message) => t.is(message, "URL was malformed.")
     )
@@ -102,7 +102,7 @@ test('getImageUrlFromSearchResult: Bad URL', async (t) => {
 test('getImageUrlFromSearchResult: Empty result', async (t) => {
     const test = {};
     t.plan(1);
-    thumb.getImageUrlFromSearchResult(test).then(
+    await thumb.getImageUrlFromSearchResult(test).then(
         () => t.fail("Promise didn't reject"),
         (message) => t.is(message, "No result found.")
     )
@@ -115,7 +115,7 @@ test('getImageUrlFromSearchResult: No results', async (t) => {
         }
     };
     t.plan(1);
-    thumb.getImageUrlFromSearchResult(test).then(
+    await thumb.getImageUrlFromSearchResult(test).then(
         () => t.fail("Promise didn't reject"),
         (message) => t.is(message, "No result found.")
     )
@@ -128,7 +128,7 @@ test('getImageUrlFromSearchResult: Record has no thumbnail', async (t) => {
         }
     };
     t.plan(1);
-    thumb.getImageUrlFromSearchResult(test).then(
+    await thumb.getImageUrlFromSearchResult(test).then(
         () => t.fail("Promise didn't reject"),
         (message) => t.is(message, "Couldn't find image URL in record.")
     )

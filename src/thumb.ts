@@ -36,7 +36,6 @@ export const thumb: RequestHandler = async function (req: express.Request, res: 
 
     console.debug("Serving request for " + itemId);
 
-    //todo wire in some catches
     //this promise chain essentially decides whether we're serving from the cache
     //or from the contributor and calls the appropriate handler.
     Promise
@@ -46,6 +45,7 @@ export const thumb: RequestHandler = async function (req: express.Request, res: 
         .then(
             (itemId: string) => lookupImageInS3(itemId)
             //process the response from s3
+            //this can't fail, so no need to handle errors
         )
         //process the response from s3
         .then(
@@ -74,6 +74,7 @@ export function proxyItemFromContributor(itemId, expressResponse) {
                 console.debug(`Caught error for ${itemId} from ElasticSearch.`, error);
                 switch (error.statusCode) {
                     case 404:
+                        console.debug(`404 for ${itemId}`);
                         expressResponse.status(404);
                         expressResponse.end();
                         return;
@@ -111,54 +112,32 @@ export function proxyItemFromContributor(itemId, expressResponse) {
         });
 }
 
-export function serveItemFromS3(itemId, expressResponse) {
+export async function serveItemFromS3(itemId, expressResponse): Promise<void> {
     expressResponse.set(getCacheHeaders(LONG_CACHE_TIME));
-    getS3Url(itemId)
-        .then((url) => getRemoteImagePromise(url))
-        .then((response: Response) => {
-            expressResponse.status(getImageStatusCode(response.status));
-            expressResponse.set(getHeadersFromTarget(response.headers));
-            console.debug("Piping response.")
-            response.body.pipe(expressResponse, {end: true});
-            return;
-        })
-}
-
-//item ids are always the same length and have hex characters in them
-//blow up if this isn't one
-export function getItemId(path: string): string | undefined {
-    const matchResult = PATH_PATTERN.exec(path)
-    if (matchResult) {
-        return matchResult[1];
-    } else {
-        return undefined;
-    }
-}
-
-//the keys in the cache bucket in s3 have subfolders to keep it from being an enormous list
-//the first 4 hex digits in the image id are used to create a path structure like /1/2/3/4
-//weak argument validation here because it should have already been validated by getItemId.
-export function getS3Key(id: string): string {
-    const prefix = id.substr(0, 4).split("").join("/");
-    return prefix + "/" + id + ".jpg";
+    const s3url = await getS3Url(itemId);
+    const response: Response = await getRemoteImagePromise(s3url);
+    expressResponse.status(getImageStatusCode(response.status));
+    expressResponse.set(getHeadersFromTarget(response.headers));
+    console.debug("Piping response.");
+    response.body.pipe(expressResponse, {end: true});
 }
 
 //performs a head request against s3. it either works and we grab the data out from s3, or it fails and
 //we get it from the contributor.
-export function lookupImageInS3(id: string): Promise<PromiseResult<aws.S3.Types.HeadObjectOutput, aws.AWSError>> {
+export async function lookupImageInS3(id: string): Promise<PromiseResult<aws.S3.Types.HeadObjectOutput, aws.AWSError>> {
     console.debug("IN: lookupImageInS3 ", id);
     const params = {Bucket: CACHE_BUCKET, Key: getS3Key(id)};
     return s3.headObject(params).promise();
 }
 
 //todo: should we be doing a GET instead of a HEAD and piping out the data instead of using a signed URL?
-export function getS3Url(id: string): Promise<string> {
+export async function getS3Url(id: string): Promise<string> {
     console.debug("IN: getS3Url ", id);
     const params = {Bucket: CACHE_BUCKET, Key: getS3Key(id)};
     return s3.getSignedUrlPromise("getObject", params);
 }
 
-export function queueToThumbnailCache(id: string, url: string): void {
+export async function queueToThumbnailCache(id: string, url: string): Promise<void> {
     console.debug("IN: queueToThumbnailCache", id, url);
     if (!process.env.SQS_URL) return;
 
@@ -177,17 +156,16 @@ export function queueToThumbnailCache(id: string, url: string): void {
     );
 }
 
-export function lookupItemInElasticsearch(id: string): Promise<ApiResponse> {
+export async function lookupItemInElasticsearch(id: string): Promise<ApiResponse> {
     console.debug("IN: lookupItemInElasticsearch", id);
     return esClient.get({
         id: id,
         index: "dpla_alias",
-        type: "item",
         _source: ["id", "object"]
     });
 }
 
-export function getImageUrlFromSearchResult(record: Record<string, any>): Promise<string> {
+export async function getImageUrlFromSearchResult(record: Record<string, any>): Promise<string> {
     console.debug("IN: getImageUrlFromSearchResult");
     //using ?. operator short circuits the result in object to "undefined"
     //rather than throwing an exception when the property doesn't exist
@@ -216,8 +194,41 @@ export function getImageUrlFromSearchResult(record: Record<string, any>): Promis
     }
 }
 
+//wrapper promise + race that makes requests give up if they take too long
+//in theory could be used for any promise, but we're using it for provider responses.
+export async function withTimeout(msecs: number, promise: Promise<any>) {
+    console.debug("IN: withTimeout", msecs);
+    const timeout = new Promise((resolve, reject) => {
+        setTimeout(() => {
+            reject(new Error('Response from server timed out.'));
+        }, msecs);
+    });
+    return Promise.race([timeout, promise]);
+}
+
+// -------------- non-async helper functions below --------------
+
+//item ids are always the same length and have hex characters in them
+//blow up if this isn't one
+export function getItemId(path: string): string | undefined {
+    const matchResult = PATH_PATTERN.exec(path)
+    if (matchResult) {
+        return matchResult[1];
+    } else {
+        return undefined;
+    }
+}
+
+//the keys in the cache bucket in s3 have subfolders to keep it from being an enormous list
+//the first 4 hex digits in the image id are used to create a path structure like /1/2/3/4
+//weak argument validation here because it should have already been validated by getItemId.
+export function getS3Key(id: string): string {
+    const prefix = id.substr(0, 4).split("").join("/");
+    return prefix + "/" + id + ".jpg";
+}
+
 export function isProbablyURL(s: string): boolean {
-    return s && s.match(/^https?:\/\//) != null;
+    return s && s.match(/^https?:\/\//) != null; //todo validate with URL()
 }
 
 //tells upstream, including CloudFront, how long to keep the image around
@@ -235,20 +246,8 @@ export function getCacheHeaders(seconds: number): object {
     };
 }
 
-//wrapper promise + race that makes requests give up if they take too long
-//in theory could be used for any promise, but we're using it for provider responses.
-export function withTimeout(msecs: number, promise: Promise<any>) {
-    console.debug("IN: withTimeout", msecs);
-    const timeout = new Promise((resolve, reject) => {
-        setTimeout(() => {
-            reject(new Error('Response from server timed out.'));
-        }, msecs);
-    });
-    return Promise.race([timeout, promise]);
-}
-
 //issues async request for the image (could be s3 or provider)
-export function getRemoteImagePromise(imageUrl: string): Promise<Response|any> {
+export async function getRemoteImagePromise(imageUrl: string): Promise<Response|any> {
     console.debug("IN: getRemoteImagePromise", imageUrl);
     const request: Request = new Request(imageUrl);
     request.headers.append("User-Agent", "DPLA Image Proxy");
