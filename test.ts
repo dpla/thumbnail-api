@@ -58,14 +58,6 @@ test('getS3Url', async (t) => {
     t.is(md5.digest("hex"), 'df59792a760a13c04f31ee08fc3adbda');
 });
 
-test('queueToThumbnailCache', async (t) => {
-    t.pass();
-});
-
-test('lookupItemInElasticsearch', async (t) => {
-    t.pass();
-});
-
 test('getImageUrlFromSearchResult: String', async (t) => {
     const test1 = {
         _source: {

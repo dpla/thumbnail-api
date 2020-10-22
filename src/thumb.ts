@@ -11,13 +11,14 @@ const SHORT_CACHE_TIME: number = 60; //seconds
 const IMAGE_REQUEST_TIMEOUT: number = 10000; //ms
 const CACHE_BUCKET: string = "dpla-thumbnails";
 const PATH_PATTERN: RegExp = /^\/thumb\/([a-f0-9]{32})$/;
-const DEFAULT_SEARCH_INDEX: string = "http://search.internal.dp.la:9200/";
+const URL_PATTERN: RegExp = /^https?:\/\//;
+const DEFAULT_SEARCH_CLUSTER: string = "http://search.internal.dp.la:9200/";
 
 const s3: aws.S3 = new aws.S3();
 const sqs: aws.SQS = new aws.SQS({region: "us-east-1"});
 
 const esClient: Client = new Client({
-  node: process.env.ELASTIC_URL || DEFAULT_SEARCH_INDEX,
+  node: process.env.ELASTIC_URL || DEFAULT_SEARCH_CLUSTER,
   maxRetries: 5,
   requestTimeout: 60000,
   sniffOnStart: true
@@ -46,9 +47,9 @@ export const thumb: RequestHandler = async function (req: express.Request, res: 
         //failure, proxy image from contributor, queue cache request
         console.debug(`Error from S3 for ${itemId}.`, e);
 
-        //if we already started sending a response, this time we're doomed.
+        //if we already started sending a response, we're doomed.
         if (res.writableEnded) {
-            sendError(res, itemId, 502);
+            res.end();
 
         } else {
             try {
@@ -96,7 +97,15 @@ export async function proxyItemFromContributor(itemId, expressResponse): Promise
     }
 
     const imageUrl: string = await getImageUrlFromSearchResult(esResponse?.body);
-    queueToThumbnailCache(itemId, imageUrl); //don't wait on this
+
+    //don't wait on this, it's a side effect to make the image be in S3 next time
+    queueToThumbnailCache(itemId, imageUrl)
+        .then(() => {
+            console.log(`${itemId} queued for thumbnail processing.`)
+        })
+        .catch((error) => {
+            console.log("SQS error: ", error)
+        });
 
     try {
         const remoteImageResponse: Response = await getRemoteImagePromise(imageUrl);
@@ -135,24 +144,11 @@ export async function getS3Url(id: string): Promise<string> {
     return s3.getSignedUrlPromise("getObject", params);
 }
 
-// not marking this as async because it's fire and forget.
-export function queueToThumbnailCache(id: string, url: string): Promise<void> {
+export async function queueToThumbnailCache(id: string, url: string): Promise<void> {
     console.debug("IN: queueToThumbnailCache", id, url);
     if (!process.env.SQS_URL) return;
-
-    const msg = {id: id, url: url};
-
-    sqs.sendMessage(
-        {
-            MessageBody: JSON.stringify(msg),
-            QueueUrl: process.env.SQS_URL
-        },
-        (error: aws.AWSError, data: aws.SQS.SendMessageResult): void => {
-            if (error) {
-                console.log("SQS error: ", error, data);
-            }
-        }
-    );
+    const msg = JSON.stringify({id: id, url: url});
+    await sqs.sendMessage({MessageBody: msg, QueueUrl: process.env.SQS_URL}).promise();
 }
 
 export async function lookupItemInElasticsearch(id: string): Promise<ApiResponse> {
@@ -224,7 +220,16 @@ export function getS3Key(id: string): string {
 }
 
 export function isProbablyURL(s: string): boolean {
-    return s && s.match(/^https?:\/\//) != null; //todo validate with URL()
+    if (!s) return false;
+    if (!URL_PATTERN.test(s)) return false;
+    try {
+        new URL(s);
+
+    } catch (e) {
+        //didn't parse
+        return false;
+    }
+    return true;
 }
 
 //tells upstream, including CloudFront, how long to keep the image around
