@@ -17,6 +17,7 @@
     "@types/node-fetch": "^2.5.7",
     "@types/request": "^2.48.5",
     "aws-sdk": "^2.765.0",
+    "aws-xray-sdk": "^3.2.0",
     "debug": "~2.6.9",
     "express": "~4.16.1",
     "http-errors": "~1.6.3",

@@ -1,10 +1,12 @@
 import * as express from 'express';
-import * as aws from 'aws-sdk';
+import * as AWS from 'aws-sdk';
+import AWSXRay from 'aws-xray-sdk';
 import {RequestHandler} from 'express-serve-static-core';
 import {PromiseResult} from 'aws-sdk/lib/request';
 import fetch from 'node-fetch';
 import {Request, Response, Headers} from "node-fetch";
 import {Client, ApiResponse} from '@elastic/elasticsearch';
+import https from 'https';
 
 const LONG_CACHE_TIME: number = 60 * 60 * 24 * 30; //seconds
 const SHORT_CACHE_TIME: number = 60; //seconds
@@ -14,8 +16,10 @@ const PATH_PATTERN: RegExp = /^\/thumb\/([a-f0-9]{32})$/;
 const URL_PATTERN: RegExp = /^https?:\/\//;
 const DEFAULT_SEARCH_CLUSTER: string = "http://search.internal.dp.la:9200/";
 
-const s3: aws.S3 = new aws.S3();
-const sqs: aws.SQS = new aws.SQS({region: "us-east-1"});
+const aws = AWSXRay.captureAWS(AWS);
+const s3: AWS.S3 = new aws.S3();
+const sqs: AWS.SQS = new aws.SQS({region: "us-east-1"});
+
 
 const esClient: Client = new Client({
   node: process.env.ELASTIC_URL || DEFAULT_SEARCH_CLUSTER,
@@ -131,7 +135,7 @@ export async function serveItemFromS3(itemId, expressResponse): Promise<void> {
 
 //performs a head request against s3. it either works and we grab the data out from s3, or it fails and
 //we get it from the contributor.
-export async function lookupImageInS3(id: string): Promise<PromiseResult<aws.S3.Types.HeadObjectOutput, aws.AWSError>> {
+export async function lookupImageInS3(id: string): Promise<PromiseResult<AWS.S3.Types.HeadObjectOutput, AWS.AWSError>> {
     console.debug("IN: lookupImageInS3 ", id);
     const params = {Bucket: CACHE_BUCKET, Key: getS3Key(id)};
     return s3.headObject(params).promise();
