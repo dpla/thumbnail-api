@@ -1,6 +1,6 @@
 import { before } from 'ava';
 import test from 'ava';
-import * as thumb from './src/thumb';
+import * as thumb from '../src/thumb';
 import * as crypto from 'crypto';
 import * as aws from 'aws-sdk';
 import fetch from 'node-fetch';
