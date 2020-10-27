@@ -5,7 +5,8 @@
   "scripts": {
     "build": "tsc",
     "start": "tsc && node dist/src/app.js",
-    "test": "ava -v -T 2m"
+    "test": "ava -v -T 2m test/unit.ts",
+    "test:integration": "ava -v -T 2m test/integration.ts"
   },
   "dependencies": {
     "@elastic/elasticsearch": "^7.9.1",
