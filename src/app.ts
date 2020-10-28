@@ -12,8 +12,12 @@ const port = 3000;
 const awsOptions = { region: "us-east-1"};
 const bucket = "dpla-thumbnails";
 
-const app = express();
+
 const XRayExpress = AWSXRay.express;
+const segment = XRayExpress.openSegment('thumbq')
+const app = express();
+app.use(segment);
+
 AWSXRay.config([AWSXRay.plugins.EC2Plugin,AWSXRay.plugins.ElasticBeanstalkPlugin]);
 AWSXRay.captureHTTPsGlobal(https, false);
 AWSXRay.captureHTTPsGlobal(http, false);
@@ -31,12 +35,10 @@ const esClient: Client = new Client({
 
 const thumb: Thumb = new Thumb(bucket, s3, sqs, esClient);
 
-app.use(XRayExpress.openSegment('thumbq'));
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-app.get('/thumb/*', thumb.handle);
+app.get('/thumb/*', (req, res) => thumb.handle(req, res));
 
 app.use(XRayExpress.closeSegment());
 
