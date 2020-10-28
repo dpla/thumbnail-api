@@ -16,7 +16,7 @@ const esClient: Client = new Client({
     sniffOnStart: true
 });
 
-const thumb = new Thumb("foo", s3, sqs, esClient);
+const thumb = new Thumb("dpla-thumbnails", s3, sqs, esClient);
 
 test('getS3Key', t => {
     const testData: object = {
@@ -43,12 +43,15 @@ test('lookupImageInS3', async t => {
 });
 
 test('getS3Url', async (t) => {
+    const id = "0000f6ee924d7b60bbfefbc670575653";
+    const result = await s3.headObject({Bucket: "dpla-thumbnails", Key: thumb.getS3Key(id)}).promise();
+    const origMD5 = result.ETag?.replace(/"/g, '');
     const md5 = crypto.createHash('md5');
-    const s3url = await thumb.getS3Url("0000f6ee924d7b60bbfefbc670575653");
+    const s3url = await thumb.getS3Url(id);
     const response = await fetch(s3url);
     const buffer = await response.buffer();
-    md5.update(buffer);
-    t.is(md5.digest("hex"), 'df59792a760a13c04f31ee08fc3adbda');
+    md5.write(buffer);
+    t.is(md5.digest("hex"), origMD5);
 });
 
 test('getRemoteImagePromise', async (t) => {
