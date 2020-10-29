@@ -10,9 +10,11 @@ const port = process.env.PORT || 3000;
 const awsOptions = { region: process.env.REGION || "us-east-1"};
 const bucket = process.env.BUCKET || "dpla-thumbnails";
 const xray = process.env.XRAY;
+const elasticsearch = process.env.ELASTIC_URL || "http://search.internal.dp.la:9200/";
+
 const app = express();
 
-function getAws()  {
+function getAws() {
   if (xray) {
     const XRayExpress = AWSXRay.express;
     const segment = XRayExpress.openSegment('thumbq')
@@ -21,6 +23,7 @@ function getAws()  {
     AWSXRay.captureHTTPsGlobal(https, false);
     AWSXRay.captureHTTPsGlobal(http, false);
     return AWSXRay.captureAWS(AWS);
+
   } else {
     return AWS;
   }
@@ -31,7 +34,7 @@ const s3: AWS.S3 = new aws.S3(awsOptions);
 const sqs: AWS.SQS = new aws.SQS(awsOptions);
 
 const esClient: Client = new Client({
-  node: process.env.ELASTIC_URL || "http://search.internal.dp.la:9200/",
+  node: elasticsearch,
   maxRetries: 5,
   requestTimeout: 60000,
   sniffOnStart: true
