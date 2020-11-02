@@ -16,6 +16,7 @@ const app = express();
 
 function getAws() {
   if (xray) {
+    console.log("Enabling AWS X-Ray");
     const XRayExpress = AWSXRay.express;
     const segment = XRayExpress.openSegment('thumbq')
     app.use(segment);
@@ -43,6 +44,7 @@ const esClient: Client = new Client({
 const thumb: Thumb = new Thumb(bucket, s3, sqs, esClient);
 
 app.get('/thumb/*', (req, res) => thumb.handle(req, res));
+app.get('/health', ((req, res) => res.sendStatus(200)))
 
 if (xray) {
   const XRayExpress = AWSXRay.express;

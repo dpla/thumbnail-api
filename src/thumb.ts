@@ -66,7 +66,7 @@ export class Thumb {
 
     sendError(res: express.Response, itemId: string, code: number, error?: any): void {
         console.info(`Sending ${code} for ${itemId}`, error);
-        res.status(code);
+        res.sendStatus(code);
         res.end();
     }
 
