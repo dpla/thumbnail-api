@@ -1,6 +1,4 @@
 import express from 'express';
-import * as http from 'http';
-import * as https from 'https';
 import AWSXRay from 'aws-xray-sdk';
 import * as AWS from "aws-sdk";
 import {Thumb} from "./thumb";
@@ -20,9 +18,10 @@ function getAws() {
     const XRayExpress = AWSXRay.express;
     const segment = XRayExpress.openSegment('thumbq')
     app.use(segment);
+    AWSXRay.capturePromise();
     AWSXRay.config([AWSXRay.plugins.EC2Plugin, AWSXRay.plugins.ElasticBeanstalkPlugin]);
-    AWSXRay.captureHTTPsGlobal(https, false);
-    AWSXRay.captureHTTPsGlobal(http, false);
+    AWSXRay.captureHTTPsGlobal(require('https'), false);
+    AWSXRay.captureHTTPsGlobal(require('http'), false);
     return AWSXRay.captureAWS(AWS);
 
   } else {
