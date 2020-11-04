@@ -39,7 +39,7 @@ export class Thumb {
             //ask S3 if it has a copy of the image
             const s3response = await this.lookupImageInS3(itemId);
             //success, get image from s3
-            console.debug(`${itemId} found in S3.`);
+            console.info(`${itemId} found in S3.`);
             await this.serveItemFromS3(itemId, res);
 
         } catch (e) {
@@ -56,6 +56,7 @@ export class Thumb {
 
                 } catch (error) {
                     if (!res.headersSent) {
+                        console.debug("Headers not sent. sending generic error.", error);
                         this.sendError(res, itemId, 502, error);
                     }
 
@@ -65,7 +66,7 @@ export class Thumb {
     }
 
     sendError(res: express.Response, itemId: string, code: number, error?: any): void {
-        console.info(`Sending ${code} for ${itemId}`, error);
+        console.info(`Sending ${code} for ${itemId}:`, error);
         res.sendStatus(code);
         res.end();
     }
@@ -81,21 +82,28 @@ export class Thumb {
             esResponse = await this.lookupItemInElasticsearch(itemId);
 
         } catch (error) {
-            console.debug(`Caught error for ${itemId} from ElasticSearch.`, error);
 
             if (error?.statusCode == 404) {
-                console.debug("Was 404.");
-                this.sendError(expressResponse, itemId, 404);
-                return Promise.reject();
+                console.info(`404 from ElasticSearch for ${itemId}`);
+                this.sendError(expressResponse, itemId, 404, "Not found in search index.");
+                return Promise.reject(error);
 
             } else {
                 // couldn't connect or something
+                console.error(`Caught error for ${itemId} from ElasticSearch.`, error);
                 this.sendError(expressResponse, itemId, 502, error);
-                return Promise.reject();
+                return Promise.reject(error);
             }
         }
 
-        const imageUrl: string = await this.getImageUrlFromSearchResult(esResponse?.body);
+        let imageUrl: string = undefined;
+
+        try {
+            imageUrl = await this.getImageUrlFromSearchResult(esResponse?.body);
+        } catch (error) {
+            this.sendError(expressResponse, itemId, 404, error);
+            return Promise.reject(error);
+        }
 
         //don't wait on this, it's a side effect to make the image be in S3 next time
         this.queueToThumbnailCache(itemId, imageUrl)
@@ -108,8 +116,25 @@ export class Thumb {
 
         try {
             const remoteImageResponse: Response = await this.getRemoteImagePromise(imageUrl);
-            expressResponse.status(this.getImageStatusCode(remoteImageResponse.status));
-            expressResponse.set(this.getHeadersFromTarget(remoteImageResponse.headers));
+            const status = this.getImageStatusCode(remoteImageResponse.status);
+
+            if (status > 399) {
+                this.sendError(expressResponse, itemId, 404, `Status ${status} from upstream.`);
+                return
+            }
+
+            const headers = this.getHeadersFromTarget(remoteImageResponse.headers);
+
+            if (headers?.["Content-Type"]) {
+                const contentType = headers["Content-Type"];
+                if (!contentType.startsWith("image")) {
+                    this.sendError(expressResponse, itemId, 404, `Got bad content type ${contentType} from upstream.`);
+                    return
+                }
+            }
+
+            expressResponse.status(status);
+            expressResponse.set(headers);
             console.debug("Piping response.");
             remoteImageResponse.body.pipe(expressResponse, {end: true});
 
@@ -268,6 +293,12 @@ export class Thumb {
         const contentEncoding = "Content-Encoding";
         if (headers.has(contentEncoding)) {
             result[contentEncoding] = headers.get(contentEncoding);
+        }
+
+        const contentType = "Content-Type";
+
+        if (headers.has(contentType)) {
+            result[contentType] = headers.get(contentType);
         }
 
         const lastModified = "Last-Modified";
