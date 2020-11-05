@@ -121,3 +121,8 @@ cypress.json
 
 dist/
 >>>>>>> removed dist folder
+
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml
