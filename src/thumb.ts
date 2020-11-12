@@ -290,10 +290,6 @@ export class Thumb {
         const result = {};
 
         // Reduce headers to just those that we want to pass through
-        const contentEncoding = "Content-Encoding";
-        if (headers.has(contentEncoding)) {
-            result[contentEncoding] = headers.get(contentEncoding);
-        }
 
         const contentType = "Content-Type";
 
