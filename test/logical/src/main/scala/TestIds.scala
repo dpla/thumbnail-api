@@ -1,9 +1,11 @@
 import java.io.FileOutputStream
 import java.util.concurrent.TimeUnit
 
-import okhttp3.{OkHttpClient, Request}
+import scalaj.http._
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.{Row, SparkSession}
+
+import scala.io.Source
 
 object TestIds {
 
@@ -27,12 +29,11 @@ object TestIds {
         val id = row.getString(0)
         val url = s"http://thumb.us-east-1.elasticbeanstalk.com/thumb/${id}"
         try {
-          val request = new Request.Builder().url(url).build()
-          val response = HttpClientHolder.httpClient.newCall(request).execute()
-          val status = response.code()
-          val body = response.body()
-          val contentType = body.contentType()
-          val size = body.bytes().length
+          val response: HttpResponse[String] = Http(url).asString
+          val status = response.code
+          val body = response.body
+          val contentType = response.headers.getOrElse("Content-Type", "")
+          val size = body.length
           f"$id,$status,$contentType,$size"
         } catch {
           case e: Exception => f"$id,${e.getMessage}"
@@ -44,13 +45,4 @@ object TestIds {
 
   }
 
-}
-
-object HttpClientHolder extends Serializable {
-  @transient val httpClient = new OkHttpClient.Builder()
-    .connectTimeout(20, TimeUnit.SECONDS)
-    .readTimeout(20, TimeUnit.SECONDS)
-    .retryOnConnectionFailure(true)
-    .followRedirects(true)
-    .build()
 }
