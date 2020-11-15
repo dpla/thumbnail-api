@@ -1,5 +1,12 @@
 .vscode/
 
+test/logical/.bsp/
+test/logical/.vagrant/
+test/logical/ids.txt
+test/logical/project/project/
+test/logical/project/target/
+test/logical/target/
+
 # Logs
 logs
 *.log
