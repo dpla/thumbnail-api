@@ -58,8 +58,10 @@ export class Thumb {
                     if (!res.headersSent) {
                         console.debug("Headers not sent. sending generic error.", error);
                         this.sendError(res, itemId, 502, error);
+                    } else {
+                        console.debug("Headers sent but received error.", error);
+                        res.end();
                     }
-
                 }
             }
         }
@@ -115,7 +117,15 @@ export class Thumb {
             });
 
         try {
-            const remoteImageResponse: Response = await this.getRemoteImagePromise(imageUrl);
+            let remoteImageResponse: Response = null;
+
+            try {
+                remoteImageResponse = await this.getRemoteImagePromise(imageUrl);
+            } catch (error) {
+                this.sendError(expressResponse, itemId, 404, `Couldn't connect to upstream ${imageUrl}: ${error}`);
+                return
+            }
+
             const status = this.getImageStatusCode(remoteImageResponse.status);
 
             if (status > 399) {
@@ -127,7 +137,7 @@ export class Thumb {
 
             if (headers?.["Content-Type"]) {
                 const contentType = headers["Content-Type"];
-                if (!contentType.startsWith("image")) {
+                if (!contentType.startsWith("image") && !contentType.endsWith("octet-stream")) {
                     this.sendError(expressResponse, itemId, 404, `Got bad content type ${contentType} from upstream.`);
                     return
                 }
