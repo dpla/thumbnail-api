@@ -7,7 +7,7 @@
     "start": "node dist/app.js",
     "test": "ava -v -T 2m test/unit.ts",
     "test:integration": "ava -v -T 2m test/integration.ts",
-    "zip": "zip ../thumb.zip -r * '.[^.]*'"
+    "zip": "zip -r ../thumb.zip dist node_modules package-lock.json package.json"
   },
   "dependencies": {
     "@elastic/elasticsearch": "^7.9.1",
