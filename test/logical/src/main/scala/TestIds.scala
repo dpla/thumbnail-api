@@ -21,10 +21,10 @@ object TestIds {
       .getOrCreate()
 
     import spark.implicits._
+    val fraction = args(0).toFloat
+    val ids = spark.read.text(args(1))
 
-    val ids = spark.read.text(args(0))
-
-    ids.sample(0.001).map(
+    ids.sample(fraction).map(
       (row: Row) => {
         val id = row.getString(0)
         val url = s"http://thumb.us-east-1.elasticbeanstalk.com/thumb/${id}"
@@ -32,14 +32,14 @@ object TestIds {
           val response: HttpResponse[String] = Http(url).asString
           val status = response.code
           val body = response.body
-          val contentType = response.headers.getOrElse("Content-Type", "")
+          val contentType = response.headers.getOrElse("Content-Type", Seq("")).head
           val size = body.length
           f"$id,$status,$contentType,$size"
         } catch {
           case e: Exception => f"$id,${e.getMessage}"
         }
       }
-    ).write.text(args(1))
+    ).write.text(args(2))
 
     spark.close()
 
