@@ -39,7 +39,7 @@ export class Thumb {
             //ask S3 if it has a copy of the image
             const s3response = await this.lookupImageInS3(itemId);
             //success, get image from s3
-            console.info(`${itemId} found in S3.`);
+            console.debug(`${itemId} found in S3.`);
             await this.serveItemFromS3(itemId, res);
 
         } catch (e) {
@@ -48,6 +48,7 @@ export class Thumb {
 
             //if we already started sending a response, we're doomed.
             if (res.writableEnded) {
+                console.error(`Started sending S3 response for ${itemId} but failed.`, e);
                 res.end();
 
             } else {
@@ -56,10 +57,9 @@ export class Thumb {
 
                 } catch (error) {
                     if (!res.headersSent) {
-                        console.debug("Headers not sent. sending generic error.", error);
                         this.sendError(res, itemId, 502, error);
                     } else {
-                        console.debug("Headers sent but received error.", error);
+                        console.error(`Headers sent but received error for ${itemId}.`, error);
                         res.end();
                     }
                 }
@@ -68,7 +68,7 @@ export class Thumb {
     }
 
     sendError(res: express.Response, itemId: string, code: number, error?: any): void {
-        console.info(`Sending ${code} for ${itemId}:`, error);
+        console.error(`Sending ${code} for ${itemId}:`, error);
         res.sendStatus(code);
         res.end();
     }
@@ -110,10 +110,10 @@ export class Thumb {
         //don't wait on this, it's a side effect to make the image be in S3 next time
         this.queueToThumbnailCache(itemId, imageUrl)
             .then(() => {
-                console.log(`${itemId} queued for thumbnail processing.`)
+                console.info(`${itemId} queued for thumbnail processing.`)
             })
             .catch((error) => {
-                console.log("SQS error: ", error)
+                console.error(`SQS error for ${itemId}: `, error)
             });
 
         try {
