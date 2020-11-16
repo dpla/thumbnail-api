@@ -33,18 +33,14 @@ export class Thumb {
             return;
         }
 
-        console.debug("Serving request for " + itemId);
-
         try {
             //ask S3 if it has a copy of the image
             const s3response = await this.lookupImageInS3(itemId);
             //success, get image from s3
-            console.debug(`${itemId} found in S3.`);
             await this.serveItemFromS3(itemId, res);
 
         } catch (e) {
             //failure, proxy image from contributor, queue cache request
-            console.debug(`Error from S3 for ${itemId}.`, e);
 
             //if we already started sending a response, we're doomed.
             if (res.writableEnded) {
@@ -86,7 +82,6 @@ export class Thumb {
         } catch (error) {
 
             if (error?.statusCode == 404) {
-                console.info(`404 from ElasticSearch for ${itemId}`);
                 this.sendError(expressResponse, itemId, 404, "Not found in search index.");
                 return Promise.reject(error);
 
@@ -109,9 +104,6 @@ export class Thumb {
 
         //don't wait on this, it's a side effect to make the image be in S3 next time
         this.queueToThumbnailCache(itemId, imageUrl)
-            .then(() => {
-                console.info(`${itemId} queued for thumbnail processing.`)
-            })
             .catch((error) => {
                 console.error(`SQS error for ${itemId}: `, error)
             });
@@ -145,7 +137,6 @@ export class Thumb {
 
             expressResponse.status(status);
             expressResponse.set(headers);
-            console.debug("Piping response.");
             remoteImageResponse.body.pipe(expressResponse, {end: true});
 
         } catch (error) {
@@ -159,34 +150,29 @@ export class Thumb {
         const response: Response = await this.getRemoteImagePromise(s3url);
         expressResponse.status(this.getImageStatusCode(response.status));
         expressResponse.set(this.getHeadersFromTarget(response.headers));
-        console.debug("Piping response.");
         response.body.pipe(expressResponse, {end: true});
     }
 
 //performs a head request against s3. it either works and we grab the data out from s3, or it fails and
 //we get it from the contributor.
     async lookupImageInS3(id: string): Promise<PromiseResult<AWS.S3.Types.HeadObjectOutput, AWS.AWSError>> {
-        console.debug("IN: lookupImageInS3 ", id);
         const params = {Bucket: this.bucket, Key: this.getS3Key(id)};
         return this.s3.headObject(params).promise();
     }
 
 //todo: should we be doing a GET instead of a HEAD and piping out the data instead of using a signed URL?
     async getS3Url(id: string): Promise<string> {
-        console.debug("IN: getS3Url ", id);
         const params = {Bucket: this.bucket, Key: this.getS3Key(id)};
         return this.s3.getSignedUrlPromise("getObject", params);
     }
 
     async queueToThumbnailCache(id: string, url: string): Promise<void> {
-        console.debug("IN: queueToThumbnailCache", id, url);
         if (!process.env.SQS_URL) return;
         const msg = JSON.stringify({id: id, url: url});
         await this.sqs.sendMessage({MessageBody: msg, QueueUrl: process.env.SQS_URL}).promise();
     }
 
     async lookupItemInElasticsearch(id: string): Promise<ApiResponse> {
-        console.debug("IN: lookupItemInElasticsearch", id);
         return this.esClient.get({
             id: id,
             index: "dpla_alias",
@@ -195,8 +181,6 @@ export class Thumb {
     }
 
     async getImageUrlFromSearchResult(record: Record<string, any>): Promise<string> {
-        console.debug("IN: getImageUrlFromSearchResult");
-
         //using ?. operator short circuits the result in object to "undefined"
         //rather than throwing an exception when the property doesn't exist
         const obj: any = record?._source?.object;
@@ -224,7 +208,6 @@ export class Thumb {
 //wrapper promise + race that makes requests give up if they take too long
 //in theory could be used for any promise, but we're using it for provider responses.
     async withTimeout(msecs: number, promise: Promise<any>) {
-        console.debug("IN: withTimeout", msecs);
         const timeout = new Promise((resolve, reject) => {
             setTimeout(() => {
                 reject(new Error('Response from server timed out.'));
@@ -272,7 +255,6 @@ export class Thumb {
 //whereas s3 responses should live there for a long time
 //see LONG_CACHE_TIME and SHORT_CACHE_TIME, above
     getCacheHeaders(seconds: number): object {
-        console.debug("IN: setCacheHeaders", seconds)
         const now = new Date().getTime();
         const expirationDateString = new Date(now + 1000 * seconds).toUTCString();
         const cacheControl = `public, max-age=${seconds}`;
@@ -284,7 +266,6 @@ export class Thumb {
 
 //issues async request for the image (could be s3 or provider)
     getRemoteImagePromise(imageUrl: string): Promise<Response|any> {
-        console.debug("IN: getRemoteImagePromise", imageUrl);
         const request: Request = new Request(imageUrl);
         request.headers.append("User-Agent", "DPLA Image Proxy");
         return this.withTimeout(
@@ -295,14 +276,10 @@ export class Thumb {
 
 //providers/s3 could set all sorts of weird headers, but we only want to pass along a few
     getHeadersFromTarget(headers: Headers): object {
-        console.debug("IN: setHeadersFromTarget");
-
         const result = {};
 
         // Reduce headers to just those that we want to pass through
-
         const contentType = "Content-Type";
-
         if (headers.has(contentType)) {
             result[contentType] = headers.get(contentType);
         }
