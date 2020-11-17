@@ -1,5 +1,4 @@
 import test from "ava";
-import { before } from "ava";
 import * as aws from "aws-sdk";
 import crypto from "crypto";
 import fetch from "node-fetch";

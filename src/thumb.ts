@@ -35,7 +35,7 @@ export class Thumb {
 
         try {
             //ask S3 if it has a copy of the image
-            const s3response = await this.lookupImageInS3(itemId);
+            await this.lookupImageInS3(itemId);
             //success, get image from s3
             await this.serveItemFromS3(itemId, res);
 

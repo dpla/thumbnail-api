@@ -10,7 +10,7 @@ const mustFork = process.env.MUST_FORK === "true" ||  process.env.NODE_ENV === "
 
 if (cluster.isMaster && mustFork) {
   cluster
-      .on("exit", (worker, code, signal) => {
+      .on("exit", (worker) => {
         console.log(`worker ${worker.process.pid} died`);
       })
       .on("online", worker => {
