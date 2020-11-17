@@ -138,11 +138,10 @@ test('setHeadersFromTarget', async (t) => {
     headers.append("Content-Encoding", "text/plain");
     headers.append("Last-Modified", "Wed, 21 Oct 2015 07:28:00 GMT");    
     const responseHeaders = thumb.getHeadersFromTarget(headers);
-    ["Content-Encoding", "Last-Modified"].forEach(key => {
-        t.is(responseHeaders[key], headers.get(key));
-    })
+    t.is(responseHeaders["Last-Modified"], headers.get("Last-Modified"));
     t.falsy(responseHeaders["foo"]);
     t.falsy(responseHeaders["bar"]);
+    t.falsy(responseHeaders["Content-Encoding"]);
 });
 
 test('getImageStatusCode', async (t) => {
