@@ -6,13 +6,13 @@ import {Request, Response, Headers} from "node-fetch";
 import {Client, ApiResponse} from '@elastic/elasticsearch';
 
 const LONG_CACHE_TIME: number = 60 * 60 * 24 * 30; //seconds
-const SHORT_CACHE_TIME: number = 60; //seconds
-const IMAGE_REQUEST_TIMEOUT: number = 10000; //ms
+const SHORT_CACHE_TIME = 60; //seconds
+const IMAGE_REQUEST_TIMEOUT = 10000; //ms
 
-const PATH_PATTERN: RegExp = /^\/thumb\/([a-f0-9]{32})$/;
-const URL_PATTERN: RegExp = /^https?:\/\//;
+const PATH_PATTERN = /^\/thumb\/([a-f0-9]{32})$/;
+const URL_PATTERN = /^https?:\/\//;
 
-export class Thumb {
+export class Wooten {
     bucket: string;
     s3: AWS.S3;
     sqs: AWS.SQS;
@@ -29,7 +29,7 @@ export class Thumb {
         const itemId = this.getItemId(req.path);
 
         if (!itemId) {
-            this.sendError(res, itemId, 400, "Bad item ID.");
+            this.sendError(res, itemId, 400, new Error("Bad item ID."));
             return;
         }
 
@@ -54,22 +54,19 @@ export class Thumb {
                 } catch (error) {
                     if (!res.headersSent) {
                         this.sendError(res, itemId, 502, error);
-                    } else {
-                        console.error(`Headers sent but received error for ${itemId}.`, error);
-                        res.end();
                     }
                 }
             }
         }
     }
 
-    sendError(res: express.Response, itemId: string, code: number, error?: any): void {
-        console.error(`Sending ${code} for ${itemId}:`, error);
+    sendError(res: express.Response, itemId: string, code: number, error?: Error): void {
+        console.error(`Sending ${code} for ${itemId}:`, error.message);
         res.sendStatus(code);
         res.end();
     }
 
-    async proxyItemFromContributor(itemId, expressResponse): Promise<void> {
+    async proxyItemFromContributor(itemId: string, expressResponse: express.Response): Promise<void> {
         //we only want the cache to have the proxied image from the contributor for a short amount
         //because it won't have been sized down
         expressResponse.set(this.getCacheHeaders(SHORT_CACHE_TIME));
@@ -82,7 +79,12 @@ export class Thumb {
         } catch (error) {
 
             if (error?.statusCode == 404) {
-                this.sendError(expressResponse, itemId, 404, "Not found in search index.");
+                this.sendError(
+                    expressResponse,
+                    itemId,
+                    404,
+                    Error("Not found in search index.")
+                );
                 return Promise.reject(error);
 
             } else {
@@ -114,14 +116,24 @@ export class Thumb {
             try {
                 remoteImageResponse = await this.getRemoteImagePromise(imageUrl);
             } catch (error) {
-                this.sendError(expressResponse, itemId, 404, `Couldn't connect to upstream ${imageUrl}: ${error}`);
+                this.sendError(
+                    expressResponse,
+                    itemId,
+                    404,
+                    new Error(`Couldn't connect to upstream ${imageUrl}: ${error}`)
+                );
                 return
             }
 
             const status = this.getImageStatusCode(remoteImageResponse.status);
 
             if (status > 399) {
-                this.sendError(expressResponse, itemId, 404, `Status ${status} from upstream.`);
+                this.sendError(
+                    expressResponse,
+                    itemId,
+                    404,
+                    new Error(`Status ${status} from upstream.`)
+                );
                 return
             }
 
@@ -130,7 +142,12 @@ export class Thumb {
             if (headers?.["Content-Type"]) {
                 const contentType = headers["Content-Type"];
                 if (!contentType.startsWith("image") && !contentType.endsWith("octet-stream")) {
-                    this.sendError(expressResponse, itemId, 404, `Got bad content type ${contentType} from upstream.`);
+                    this.sendError(
+                        expressResponse,
+                        itemId,
+                        404,
+                        new Error(`Got bad content type ${contentType} from upstream.`)
+                    );
                     return
                 }
             }
@@ -138,19 +155,21 @@ export class Thumb {
             expressResponse.status(status);
             expressResponse.set(headers);
             remoteImageResponse.body.pipe(expressResponse, {end: true});
+            console.info(`200 for ${itemId} from contributing institution.`)
 
         } catch (error) {
             this.sendError(expressResponse,  itemId, this.getImageStatusCode(error.statusCode), error);
         }
     }
 
-    async serveItemFromS3(itemId, expressResponse): Promise<void> {
+    async serveItemFromS3(itemId: string, expressResponse: express.Response): Promise<void> {
         expressResponse.set(this.getCacheHeaders(LONG_CACHE_TIME));
         const s3url = await this.getS3Url(itemId);
         const response: Response = await this.getRemoteImagePromise(s3url);
         expressResponse.status(this.getImageStatusCode(response.status));
         expressResponse.set(this.getHeadersFromTarget(response.headers));
         response.body.pipe(expressResponse, {end: true});
+        console.info(`200 for ${itemId} from S3.`);
     }
 
 //performs a head request against s3. it either works and we grab the data out from s3, or it fails and
@@ -183,9 +202,9 @@ export class Thumb {
     async getImageUrlFromSearchResult(record: Record<string, any>): Promise<string> {
         //using ?. operator short circuits the result in object to "undefined"
         //rather than throwing an exception when the property doesn't exist
-        const obj: any = record?._source?.object;
+        const obj = record?._source?.object;
 
-        let url: string = "";
+        let url = "";
 
         if (obj && Array.isArray(obj)) {
             url = obj[0];
@@ -207,8 +226,8 @@ export class Thumb {
 
 //wrapper promise + race that makes requests give up if they take too long
 //in theory could be used for any promise, but we're using it for provider responses.
-    async withTimeout(msecs: number, promise: Promise<any>) {
-        const timeout = new Promise((resolve, reject) => {
+    async withTimeout<T>(msecs: number, promise: Promise<T>): Promise<T> {
+        const timeout = new Promise<T>((resolve, reject) => {
             setTimeout(() => {
                 reject(new Error('Response from server timed out.'));
             }, msecs);
@@ -254,18 +273,18 @@ export class Thumb {
 //parameterized because we want provider errors to be cached for a shorter time
 //whereas s3 responses should live there for a long time
 //see LONG_CACHE_TIME and SHORT_CACHE_TIME, above
-    getCacheHeaders(seconds: number): object {
+    getCacheHeaders(seconds: number): Map<string, string> {
         const now = new Date().getTime();
         const expirationDateString = new Date(now + 1000 * seconds).toUTCString();
         const cacheControl = `public, max-age=${seconds}`;
-        return {
-            "Cache-Control": cacheControl,
-            "Expires": expirationDateString
-        };
+        return new Map([
+            ["Cache-Control", cacheControl],
+            ["Expires", expirationDateString]
+        ]);
     }
 
 //issues async request for the image (could be s3 or provider)
-    getRemoteImagePromise(imageUrl: string): Promise<Response|any> {
+    getRemoteImagePromise(imageUrl: string): Promise<Response> {
         const request: Request = new Request(imageUrl);
         request.headers.append("User-Agent", "DPLA Image Proxy");
         return this.withTimeout(
@@ -275,13 +294,13 @@ export class Thumb {
     }
 
 //providers/s3 could set all sorts of weird headers, but we only want to pass along a few
-    getHeadersFromTarget(headers: Headers): object {
-        const result = {};
+    getHeadersFromTarget(headers: Headers): Map<string, string> {
+        const result = new Map();
 
         // Reduce headers to just those that we want to pass through
         const contentType = "Content-Type";
         if (headers.has(contentType)) {
-            result[contentType] = headers.get(contentType);
+            result.set(contentType, headers.get(contentType));
         }
 
         const lastModified = "Last-Modified";

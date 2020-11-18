@@ -2,7 +2,7 @@ import test from "ava";
 import * as aws from "aws-sdk";
 import crypto from "crypto";
 import fetch from "node-fetch";
-import {Thumb} from "../src/thumb";
+import {Wooten} from "../src/wooten";
 import {Client} from "@elastic/elasticsearch";
 
 const options = { region: "us-east-1" };
@@ -15,7 +15,7 @@ const esClient: Client = new Client({
     sniffOnStart: true
 });
 
-const thumb = new Thumb("dpla-thumbnails", s3, sqs, esClient);
+const thumb = new Wooten("dpla-thumbnails", s3, sqs, esClient);
 
 test('getS3Key', t => {
     const testData: object = {

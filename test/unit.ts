@@ -1,11 +1,11 @@
 import test from 'ava';
 import {Headers} from "node-fetch";
-import {Thumb} from "../src/thumb";
+import {Wooten} from "../src/wooten";
 
-const thumb = new Thumb("foo", null, null, null);
+const thumb = new Wooten("foo", null, null, null);
 
 test('getItemId', t => {
-    const testData: object = {
+    const testData = {
         "/thumb/223ea5040640813b6c8204d1e0778d30": "223ea5040640813b6c8204d1e0778d30",
         "/thumb/11111111111111111111111111111111": "11111111111111111111111111111111",
         "/thumb//11111111111111111111111111111111": undefined,
@@ -101,9 +101,9 @@ test('isProbablyURL', async (t) => {
 
 test('getCacheHeaders', async (t) => {
     const result = thumb.getCacheHeaders(2);
-    t.is(result['Cache-Control'], `public, max-age=2`);
+    t.is(result.get('Cache-Control'), `public, max-age=2`);
     t.regex(
-        result['Expires'], 
+        result.get('Expires'),
         /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun),\W\d{2}\W(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\W\d{4}\W\d{2}:\d{2}:\d{2}\WGMT$/);
 });
 
