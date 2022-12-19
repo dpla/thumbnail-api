@@ -1,4 +1,4 @@
-name: thumbnail-service to ecr
+name: push to ecr
 
 on:
   workflow_dispatch:
@@ -32,9 +32,6 @@ jobs:
       - name: Install npm 
         run: npm install 
         
-      - name: Install Yarn
-        run: npm install -g yarn
-
       - name: Set AWS credentials
         if: ${{ !env.ACT }}
         uses: aws-actions/configure-aws-credentials@v1
@@ -51,7 +48,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
       
-      # Building the frontend app      
+      # Building the thumbnail app      
       - name: Build the app with NPM
         run: |
           npm install
