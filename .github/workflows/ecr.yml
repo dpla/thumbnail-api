@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 env: 
-  ECR_REPOSITORY: "thumbnail-service"
+  ECR_REPOSITORY: "thumbnail-api"
 
 jobs:
   ecr:
