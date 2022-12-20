@@ -12,7 +12,7 @@ const IMAGE_REQUEST_TIMEOUT = 10000; //ms
 const PATH_PATTERN = /^\/thumb\/([a-f0-9]{32})$/;
 const URL_PATTERN = /^https?:\/\//;
 
-export class Wooten {
+export class ThumbnailApi {
     bucket: string;
     s3: AWS.S3;
     sqs: AWS.SQS;

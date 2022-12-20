@@ -1,8 +1,8 @@
 import test from 'ava';
 import {Headers} from "node-fetch";
-import {Wooten} from "../src/wooten";
+import {ThumbnailApi} from "../src/ThumbnailApi";
 
-const thumb = new Wooten("foo", null, null, null);
+const thumb = new ThumbnailApi("foo", null, null, null);
 
 test('getItemId', t => {
     const testData = {
