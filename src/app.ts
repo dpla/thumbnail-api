@@ -1,7 +1,7 @@
 import express from 'express';
 import AWSXRay from 'aws-xray-sdk';
 import * as AWS from "aws-sdk";
-import {Wooten} from "./wooten";
+import {ThumbnailApi} from "./ThumbnailApi";
 import {Client} from "@elastic/elasticsearch";
 import cluster from "cluster";
 import os from "os";
@@ -11,7 +11,7 @@ function getAws(xray: boolean, app: express.Express) {
   if (xray) {
     console.log("Enabling AWS X-Ray");
     const XRayExpress = AWSXRay.express;
-    app.use(XRayExpress.openSegment('wooten'));
+    app.use(XRayExpress.openSegment('thumbnail-api'));
     AWSXRay.config([AWSXRay.plugins.EC2Plugin, AWSXRay.plugins.ElasticBeanstalkPlugin]);
     AWSXRay.capturePromise();
     AWSXRay.captureHTTPsGlobal(https, true);
@@ -56,9 +56,9 @@ if (cluster.isMaster && mustFork) {
     sniffOnStart: true
   });
 
-  const wooten: Wooten = new Wooten(bucket, s3, sqs, esClient);
+  const thumbnailapi: ThumbnailApi = new ThumbnailApi(bucket, s3, sqs, esClient);
 
-  app.get('/thumb/*', (req, res) => wooten.handle(req, res));
+  app.get('/thumb/*', (req, res) => thumbnailapi.handle(req, res));
   app.get('/health', ((req, res) => res.sendStatus(200)))
 
   if (xray) {
