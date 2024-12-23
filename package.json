@@ -4,19 +4,21 @@
   "private": true,
   "scripts": {
     "build": "tsc",
-    "clean": "rm -r dist",
+    "clean": "rm -r dist thumbnail-api.zip 2> /dev/null ; exit 0",
     "start": "node dist/app.js",
     "lint": "npx eslint",
     "format": "prettier --ignore-path .gitignore --write \"**/*.+(js|ts|json)\"",
     "test": "ava -v -T 2m test/unit.ts",
     "test:integration": "ava -v -T 2m test/integration.ts",
-    "zip": "zip -r thumbnail-api.zip dist node_modules package-lock.json package.json"
+    "zip": "zip -r thumbnail-api.zip dist node_modules package-lock.json package.json",
+    "sentry:sourcemaps": "sentry-cli sourcemaps inject --org dpla --project thumbnail-api ./dist && sentry-cli sourcemaps upload --org dpla --project thumbnail-api ./dist"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.717.0",
     "@aws-sdk/client-sqs": "^3.716.0",
     "@aws-sdk/s3-request-presigner": "^3.717.0",
-    "@elastic/elasticsearch": "^7.9.1",
+    "@elastic/elasticsearch": "~7.9.1",
+    "@sentry/cli": "^2.39.1",
     "@sentry/node": "^8.47.0",
     "@sentry/profiling-node": "^8.47.0",
     "@types/async": "^3.2.3",
