@@ -58,7 +58,8 @@ export class ThumbnailApi {
       //if we already started sending a response, we're doomed.
       if (res.writableEnded) {
         console.error(
-          `Started sending S3 response for ${itemId} but failed.`,
+          "Started sending S3 response for %s but failed.",
+          itemId,
           e,
         );
         res.end();
