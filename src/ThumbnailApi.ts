@@ -2,7 +2,9 @@ import * as express from "express";
 import { Client, ApiResponse } from "@elastic/elasticsearch";
 import {
   GetObjectCommand,
+  GetObjectCommandInput,
   HeadObjectCommand,
+  HeadObjectCommandInput,
   HeadObjectCommandOutput,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -144,7 +146,9 @@ export class ThumbnailApi {
         return;
       }
 
-      const status = this.getImageStatusCode(remoteImageResponse.status);
+      const status: number = this.getImageStatusCode(
+        remoteImageResponse.status,
+      );
 
       if (status > 399) {
         this.sendError(
@@ -156,7 +160,9 @@ export class ThumbnailApi {
         return;
       }
 
-      const headers = this.getHeadersFromTarget(remoteImageResponse.headers);
+      const headers: Map<string, string> = this.getHeadersFromTarget(
+        remoteImageResponse.headers,
+      );
 
       if (headers?.["Content-Type"]) {
         const contentType = headers["Content-Type"];
@@ -194,7 +200,7 @@ export class ThumbnailApi {
     expressResponse: express.Response,
   ): Promise<void> {
     expressResponse.set(this.getCacheHeaders(LONG_CACHE_TIME));
-    const s3url = await this.getS3Url(itemId);
+    const s3url: string = await this.getS3Url(itemId);
     const response: Response = await this.getRemoteImagePromise(s3url);
     expressResponse.status(this.getImageStatusCode(response.status));
     expressResponse.set(this.getHeadersFromTarget(response.headers));
@@ -204,15 +210,21 @@ export class ThumbnailApi {
   //performs a head request against s3. it either works and we grab the data out from s3, or it fails and
   //we get it from the contributor.
   async lookupImageInS3(id: string): Promise<HeadObjectCommandOutput> {
-    const params = { Bucket: this.bucket, Key: this.getS3Key(id) };
-    const commandInput = new HeadObjectCommand(params);
+    const params: HeadObjectCommandInput = {
+      Bucket: this.bucket,
+      Key: this.getS3Key(id),
+    };
+    const commandInput: HeadObjectCommand = new HeadObjectCommand(params);
     return this.s3Client.send(commandInput);
   }
 
   //todo: should we be doing a GET instead of a HEAD and piping out the data instead of using a signed URL?
   async getS3Url(id: string): Promise<string> {
-    const params = { Bucket: this.bucket, Key: this.getS3Key(id) };
-    const request = new GetObjectCommand(params);
+    const params: GetObjectCommandInput = {
+      Bucket: this.bucket,
+      Key: this.getS3Key(id),
+    };
+    const request: GetObjectCommand = new GetObjectCommand(params);
     return getSignedUrl(this.s3Client, request);
   }
 
@@ -240,11 +252,13 @@ export class ThumbnailApi {
   async getImageUrlFromSearchResult(record: object): Promise<string> {
     //using ?. operator short circuits the result in object to "undefined"
     //rather than throwing an exception when the property doesn't exist
-    const obj = record?.["_source"]?.["object"] as never;
+    const obj: string | undefined = record?.["_source"]?.["object"];
 
     let url = "";
 
-    if (obj && Array.isArray(obj)) {
+    if (obj === undefined) {
+      return Promise.reject("Couldn't find image URL in record.");
+    } else if (obj && Array.isArray(obj)) {
       url = obj[0];
     } else if (obj && typeof obj == "string") {
       url = obj;

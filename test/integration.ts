@@ -1,4 +1,5 @@
 import test from "ava";
+import { Paginator } from "@smithy/types";
 import crypto from "crypto";
 import { ThumbnailApi } from "../src/ThumbnailApi";
 import { Client } from "@elastic/elasticsearch";
@@ -9,12 +10,14 @@ import {
   ListObjectsV2CommandInput,
   _Object,
   HeadObjectCommand,
+  HeadObjectCommandOutput,
+  ListObjectsV2CommandOutput,
 } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
 
 const options = { region: "us-east-1" };
-const s3 = new S3Client(options);
-const sqs = new SQSClient(options);
+const s3: S3Client = new S3Client(options);
+const sqs: SQSClient = new SQSClient(options);
 const esClient: Client = new Client({
   node: process.env.ELASTIC_URL || "http://search.internal.dp.la:9200/",
   maxRetries: 5,
@@ -33,7 +36,7 @@ test("getS3Key", (t) => {
   };
 
   Object.entries(testData).forEach(([key, value]) => {
-    const result = thumb.getS3Key(key);
+    const result: string = thumb.getS3Key(key);
     t.is(result, value, `Failed for ${key}`);
   });
 });
@@ -47,13 +50,15 @@ test("lookupImageInS3", async (t) => {
     Bucket: "dpla-thumbnails",
     Prefix: "0/0/0/0/",
   };
-  const paginator = paginateListObjectsV2(config, request);
-  const list = [];
+  const paginator: Paginator<ListObjectsV2CommandOutput> =
+    paginateListObjectsV2(config, request);
+  const list: string[] = [];
   for await (const page of paginator) {
-    list.push(page.Contents.map((o: _Object) => o.Key));
+    const keys: string[] = page.Contents.map((o: _Object): string => o.Key);
+    list.push(...keys);
   }
-  const path = list[0];
-  const key = /([a-f0-9]{32}).jpg$/.exec(path)[1];
+  const path: string = list[0];
+  const key: string = /([a-f0-9]{32}).jpg$/.exec(path)[1];
   //this will throw if it doesn't find one
   await thumb.lookupImageInS3(key);
   t.pass(); //this will fail if the promise rejects.
@@ -65,12 +70,12 @@ test("getS3Url", async (t) => {
     Bucket: "dpla-thumbnails",
     Key: `${id[0]}/${id[1]}/${id[2]}/${id[3]}/${id}.jpg`,
   });
-  const result = await s3.send(request);
-  const origMD5 = result.ETag?.replace(/"/g, "");
-  const md5 = crypto.createHash("md5");
-  const s3url = await thumb.getS3Url(id);
-  const response = await fetch(s3url);
-  const data = await response.bytes();
+  const result: HeadObjectCommandOutput = await s3.send(request);
+  const origMD5: string = result.ETag?.replace(/"/g, "");
+  const md5: crypto.Hash = crypto.createHash("md5");
+  const s3url: string = await thumb.getS3Url(id);
+  const response: Response = await fetch(s3url);
+  const data: Uint8Array<ArrayBufferLike> = await response.bytes();
   md5.write(data);
   t.is(md5.digest("hex"), origMD5);
 });
@@ -78,6 +83,6 @@ test("getS3Url", async (t) => {
 test("getRemoteImagePromise", async (t) => {
   const url =
     "https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png";
-  const result = await thumb.getRemoteImagePromise(url);
+  const result: Response = await thumb.getRemoteImagePromise(url);
   t.is(result.status, 200, "Didn't receive image in body.");
 });

@@ -5,7 +5,7 @@ import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
 import { ThumbnailApi } from "./ThumbnailApi";
 import { Client } from "@elastic/elasticsearch";
-import { default as cluster } from "node:cluster";
+import { default as cluster, Worker } from "node:cluster";
 import { cpus } from "node:os";
 
 const numCPUs = Number(process.env.PS_COUNT) || cpus().length;
@@ -43,30 +43,32 @@ function doWorker() {
     esClient,
   );
 
-  app.get("/thumb/*", (req: express.Request, res: express.Response) =>
-    thumbnailApi.handle(req, res),
+  app.get(
+    "/thumb/*",
+    (req: express.Request, res: express.Response): Promise<void> =>
+      thumbnailApi.handle(req, res),
   );
 
-  app.get("/health", (req: express.Request, res: express.Response) =>
-    res.sendStatus(200),
-  );
+  app.get("/health", (req: express.Request, res: express.Response): void => {
+    res.sendStatus(200).end();
+  });
 
   Sentry.setupExpressErrorHandler(app);
 
-  app.listen(port, () => {
+  app.listen(port, (): void => {
     console.log(`Server is listening on ${port}`);
   });
 }
 
-function doFork(numCPUs: number) {
+function doFork(numCPUs: number): void {
   cluster
-    .on("exit", (worker) => {
+    .on("exit", (worker: Worker): void => {
       console.log(`worker ${worker.process.pid} died`);
     })
-    .on("online", (worker) => {
+    .on("online", (worker: Worker): void => {
       console.log(`worker ${worker.process.pid} online`);
     });
-  for (let i = 0; i < numCPUs; i++) {
+  for (let i: number = 0; i < numCPUs; i++) {
     cluster.fork();
   }
 }
