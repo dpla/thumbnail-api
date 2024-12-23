@@ -1,3 +1,5 @@
+import "./instrumentation"; //IMPORTANT: keep this first
+import * as Sentry from "@sentry/node";
 import express from "express";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
@@ -44,9 +46,12 @@ function doWorker() {
   app.get("/thumb/*", (req: express.Request, res: express.Response) =>
     thumbnailApi.handle(req, res),
   );
+
   app.get("/health", (req: express.Request, res: express.Response) =>
     res.sendStatus(200),
   );
+
+  Sentry.setupExpressErrorHandler(app);
 
   app.listen(port, () => {
     console.log(`Server is listening on ${port}`);
