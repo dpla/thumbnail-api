@@ -18,10 +18,12 @@ test("getItemId", (t: ExecutionContext): void => {
     "/thumb/1234": undefined,
   };
 
-  Object.entries(testData).forEach((entry: [string, never]): void => {
-    const result: string = thumb.getItemId(entry[0]);
-    t.is(result, entry[1], `Failed for ${entry[0]}`);
-  });
+  Object.entries(testData).forEach(
+    (entry: [string, string | undefined]): void => {
+      const result: string = thumb.getItemId(entry[0]);
+      t.is(result, entry[1], `Failed for ${entry[0]}`);
+    },
+  );
 });
 
 test("getImageUrlFromSearchResult: String", async (t: ExecutionContext): Promise<void> => {
