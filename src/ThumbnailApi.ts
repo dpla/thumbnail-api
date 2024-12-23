@@ -109,7 +109,7 @@ export class ThumbnailApi {
         return Promise.reject(error);
       } else {
         // couldn't connect or something
-        console.error(`Caught error for ${itemId} from ElasticSearch.`, error);
+        console.error("Caught error for %s from ElasticSearch.", itemId, error);
         this.sendError(expressResponse, itemId, 502, error);
         return Promise.reject(error);
       }
