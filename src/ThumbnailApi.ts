@@ -81,7 +81,7 @@ export class ThumbnailApi {
     code: number,
     error?: Error,
   ): void {
-    console.error(`Sending ${code} for ${itemId}:`, error.message);
+    console.error("Sending %s for %s:", code, itemId, error.message);
     res.sendStatus(code);
     res.end();
   }
