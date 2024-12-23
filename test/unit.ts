@@ -1,10 +1,9 @@
-import test from "ava";
-import { Headers } from "node-fetch";
+import test, { ExecutionContext } from "ava";
 import { ThumbnailApi } from "../src/ThumbnailApi";
 
 const thumb = new ThumbnailApi("foo", null, null, null);
 
-test("getItemId", (t) => {
+test("getItemId", (t: ExecutionContext): void => {
   const testData = {
     "/thumb/223ea5040640813b6c8204d1e0778d30":
       "223ea5040640813b6c8204d1e0778d30",
@@ -19,33 +18,33 @@ test("getItemId", (t) => {
     "/thumb/1234": undefined,
   };
 
-  Object.entries(testData).forEach(([key, value]) => {
-    const result = thumb.getItemId(key);
-    t.is(result, value, `Failed for ${key}`);
+  Object.entries(testData).forEach((entry: [string, never]): void => {
+    const result: string = thumb.getItemId(entry[0]);
+    t.is(result, entry[1], `Failed for ${entry[0]}`);
   });
 });
 
-test("getImageUrlFromSearchResult: String", async (t) => {
+test("getImageUrlFromSearchResult: String", async (t: ExecutionContext): Promise<void> => {
   const test1 = {
     _source: {
       object: "http://google.com",
     },
   };
-  const result1 = await thumb.getImageUrlFromSearchResult(test1);
+  const result1: string = await thumb.getImageUrlFromSearchResult(test1);
   t.is(result1, "http://google.com");
 });
 
-test("getImageUrlFromSearchResult: Array", async (t) => {
+test("getImageUrlFromSearchResult: Array", async (t: ExecutionContext): Promise<void> => {
   const test = {
     _source: {
       object: ["http://google.com"],
     },
   };
-  const result = await thumb.getImageUrlFromSearchResult(test);
+  const result: string = await thumb.getImageUrlFromSearchResult(test);
   t.is(result, "http://google.com");
 });
 
-test("getImageUrlFromSearchResult: Bad URL", async (t) => {
+test("getImageUrlFromSearchResult: Bad URL", async (t: ExecutionContext): Promise<void> => {
   const test = {
     _source: {
       object: ["blah:hole"],
@@ -53,21 +52,21 @@ test("getImageUrlFromSearchResult: Bad URL", async (t) => {
   };
   t.plan(1);
   await thumb.getImageUrlFromSearchResult(test).then(
-    () => t.fail("Promise didn't reject"),
-    (message) => t.is(message, "URL was malformed."),
+    (): never => t.fail("Promise didn't reject"),
+    (message: string) => t.is(message, "URL was malformed."),
   );
 });
 
-test("getImageUrlFromSearchResult: Empty result", async (t) => {
+test("getImageUrlFromSearchResult: Empty result", async (t: ExecutionContext): Promise<void> => {
   const test = {};
   t.plan(1);
   await thumb.getImageUrlFromSearchResult(test).then(
-    () => t.fail("Promise didn't reject"),
-    (message) => t.is(message, "Couldn't find image URL in record."),
+    (): never => t.fail("Promise didn't reject"),
+    (message: string) => t.is(message, "Couldn't find image URL in record."),
   );
 });
 
-test("getImageUrlFromSearchResult: Record has no thumbnail", async (t) => {
+test("getImageUrlFromSearchResult: Record has no thumbnail", async (t: ExecutionContext): Promise<void> => {
   const test = {
     _source: {
       foo: ["bar"],
@@ -75,12 +74,12 @@ test("getImageUrlFromSearchResult: Record has no thumbnail", async (t) => {
   };
   t.plan(1);
   await thumb.getImageUrlFromSearchResult(test).then(
-    () => t.fail("Promise didn't reject"),
-    (message) => t.is(message, "Couldn't find image URL in record."),
+    (): never => t.fail("Promise didn't reject"),
+    (message: string) => t.is(message, "Couldn't find image URL in record."),
   );
 });
 
-test("isProbablyURL", async (t) => {
+test("isProbablyURL", async (t: ExecutionContext): Promise<void> => {
   class TestCase {
     url: string;
     result: boolean;
@@ -95,59 +94,67 @@ test("isProbablyURL", async (t) => {
     new TestCase("https://foo.com", true),
     new TestCase("http://foo.com", true),
     new TestCase("https://foo.com", true),
-  ].forEach((testCase) => {
+  ].forEach((testCase: TestCase): void => {
     t.is(thumb.isProbablyURL(testCase.url), testCase.result);
   });
 });
 
-test("getCacheHeaders", async (t) => {
-  const result = thumb.getCacheHeaders(2);
-  t.is(result.get("Cache-Control"), `public, max-age=2`);
+test("getCacheHeaders", async (t: ExecutionContext): Promise<void> => {
+  const result: Map<string, string> = thumb.getCacheHeaders(2);
+  t.is(result.get("Cache-Control"), "public, max-age=2");
   t.regex(
     result.get("Expires"),
     /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun),\W\d{2}\W(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\W\d{4}\W\d{2}:\d{2}:\d{2}\WGMT$/,
   );
 });
 
-test("withTimeout: pass", async (t) => {
-  const result = await thumb.withTimeout(3000, Promise.resolve("foo"));
+test("withTimeout: pass", async (t: ExecutionContext): Promise<void> => {
+  const result: string = await thumb.withTimeout(3000, Promise.resolve("foo"));
   t.is(result, "foo");
 });
 
-test("withTimeout: too slow", async (t) => {
+test("withTimeout: too slow", async (t: ExecutionContext): Promise<void> => {
   t.plan(1);
   await thumb
-    .withTimeout(1000, new Promise((resolve) => setTimeout(resolve, 5000)))
+    .withTimeout(
+      1000,
+      new Promise(
+        (resolve: (value: never) => void): NodeJS.Timeout =>
+          setTimeout(resolve, 5000),
+      ),
+    )
     .then(
-      () => t.fail("Promise didn't reject"),
-      (response) => t.is(response.message, "Response from server timed out."),
+      (): never => t.fail("Promise didn't reject"),
+      (response: Error): boolean =>
+        t.is(response.message, "Response from server timed out."),
     );
 });
 
-test("getRemoteImagePromise: Bad url", async (t) => {
+test("getRemoteImagePromise: Bad url", async (t: ExecutionContext): Promise<void> => {
   const url =
     "https://localhost/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png";
   t.plan(1);
   await thumb.getRemoteImagePromise(url).then(
-    () => t.fail(),
-    () => t.pass(),
+    (): never => t.fail(),
+    (): true => t.pass(),
   );
 });
 
-test("setHeadersFromTarget", async (t) => {
+test("setHeadersFromTarget", async (t: ExecutionContext): Promise<void> => {
   const headers = new Headers();
   headers.append("foo", "foo");
   headers.append("bar", "bar");
   headers.append("Content-Encoding", "text/plain");
   headers.append("Last-Modified", "Wed, 21 Oct 2015 07:28:00 GMT");
-  const responseHeaders = thumb.getHeadersFromTarget(headers);
+  const responseHeaders: Map<string, string> =
+    thumb.getHeadersFromTarget(headers);
   t.is(responseHeaders["Last-Modified"], headers.get("Last-Modified"));
   t.falsy(responseHeaders["foo"]);
   t.falsy(responseHeaders["bar"]);
   t.falsy(responseHeaders["Content-Encoding"]);
 });
 
-test("getImageStatusCode", async (t) => {
+test("getImageStatusCode", async (t: ExecutionContext): Promise<void> => {
   const data = {
     200: 200,
     404: 404,
@@ -157,7 +164,7 @@ test("getImageStatusCode", async (t) => {
     555: 502,
   };
 
-  Object.entries(data).forEach(([value, expected]) => {
-    t.is(thumb.getImageStatusCode(Number(value)), expected);
+  Object.entries(data).forEach((entry: [string, number]): void => {
+    t.is(thumb.getImageStatusCode(Number(entry[0])), entry[1]);
   });
 });
