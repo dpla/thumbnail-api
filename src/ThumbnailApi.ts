@@ -81,7 +81,7 @@ export class ThumbnailApi {
     code: number,
     error?: Error,
   ): void {
-    console.error("Sending %s for %s:", code, itemId, error.message);
+    console.error("Sending %s for %s:", code, itemId, error);
     res.sendStatus(code);
     res.end();
   }
@@ -126,7 +126,7 @@ export class ThumbnailApi {
 
     //don't wait on this, it's a side effect to make the image be in S3 next time
     this.queueToThumbnailCache(itemId, imageUrl).catch((error) => {
-      console.error(`SQS error for ${itemId}: `, error);
+      console.error("SQS error for %s", itemId, error);
     });
 
     try {
@@ -179,7 +179,6 @@ export class ThumbnailApi {
       Readable.from(remoteImageResponse.body).pipe(expressResponse, {
         end: true,
       });
-      console.info(`200 for ${itemId} from contributing institution.`);
     } catch (error) {
       this.sendError(
         expressResponse,
@@ -200,7 +199,6 @@ export class ThumbnailApi {
     expressResponse.status(this.getImageStatusCode(response.status));
     expressResponse.set(this.getHeadersFromTarget(response.headers));
     Readable.from(response.body).pipe(expressResponse, { end: true });
-    console.info(`200 for ${itemId} from S3.`);
   }
 
   //performs a head request against s3. it either works and we grab the data out from s3, or it fails and
@@ -333,16 +331,19 @@ export class ThumbnailApi {
   getHeadersFromTarget(headers: Headers): Map<string, string> {
     const result = new Map();
 
-    // Reduce headers to just those that we want to pass through
-    const contentType = "Content-Type";
-    if (headers.has(contentType)) {
-      result.set(contentType, headers.get(contentType));
-    }
+    const addHeader = (
+      result: Map<string, string>,
+      headers: Headers,
+      header: string,
+    ) => {
+      if (headers.has(header)) {
+        result.set(header, headers.get(header));
+      }
+    };
 
-    const lastModified = "Last-Modified";
-    if (headers.has(lastModified)) {
-      result[lastModified] = headers.get(lastModified);
-    }
+    // Reduce headers to just those that we want to pass through
+    addHeader(result, headers, "Content-Type");
+    addHeader(result, headers, "Last-Modified");
 
     return result;
   }
