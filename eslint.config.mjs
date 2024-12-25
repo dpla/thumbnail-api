@@ -1,17 +1,23 @@
 // eslint.config.mjs
-import globals from "globals";
-import pluginJs from "@eslint/js";
-import tsEsLint from "typescript-eslint";
+import tseslint from "typescript-eslint";
+import eslint from "@eslint/js";
 import eslintConfigPrettier from "eslint-config-prettier";
 
-export default [
-  { files: ["**/*.{js,mjs,cjs,ts}"] },
-  { files: ["**/*.js"], languageOptions: { sourceType: "commonjs" } },
-  { languageOptions: { globals: globals.browser } },
-  pluginJs.configs.recommended,
-  ...tsEsLint.configs.recommended,
-  {
-    ignores: [".node_modules/*", "dist/*"],
-  },
+export default tseslint.config(
+  eslint.configs.recommended,
+  tseslint.configs.recommendedTypeChecked,
+  tseslint.configs.stylisticTypeChecked,
   eslintConfigPrettier,
-];
+  {
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
+  {
+    files: [".node_modules/**/*", "dist/**/*", "eslint.config.mjs"],
+    extends: [tseslint.configs.disableTypeChecked],
+  },
+);
