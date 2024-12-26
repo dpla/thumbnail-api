@@ -1,4 +1,5 @@
-import test, { ExecutionContext } from "ava";
+import { ExecutionContext, default as test } from "ava";
+
 import {
   getCacheHeaders,
   getImageUrlFromSearchResult,
