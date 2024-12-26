@@ -1,9 +1,10 @@
-import * as Sentry from "@sentry/node";
 import { nodeProfilingIntegration } from "@sentry/profiling-node";
 import * as process from "node:process";
+import { init } from "@sentry/node";
 
 // Ensure to call this before importing any other modules!
-Sentry.init({
+
+init({
   debug: process.env.SENTRY_DEBUG === "true",
   dsn: process.env.SENTRY_DSN,
   integrations: [
