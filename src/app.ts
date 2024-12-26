@@ -83,7 +83,7 @@ function doWorker() {
     console.log(req.path);
     handler(req, res)
       .then(() => Promise.resolve())
-      .catch((reason) => {
+      .catch((reason: unknown) => {
         console.error("Caught error from handler: %s", reason);
       });
   });
