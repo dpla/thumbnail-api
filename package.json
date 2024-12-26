@@ -5,28 +5,24 @@
   "scripts": {
     "build": "tsc",
     "clean": "rm -r dist thumbnail-api.zip 2> /dev/null ; exit 0",
-    "start": "node dist/app.js",
+    "start": "node dist/src/app.js",
     "lint": "npx eslint",
     "format": "prettier --ignore-path .gitignore --write \"**/*.+(js|ts|json)\"",
     "test": "ava -v -T 2m test/unit.ts",
-    "test:integration": "ava -v -T 2m test/integration.ts",
+    "integration": "ava -v -T 2m test/integration.ts",
     "zip": "zip -r thumbnail-api.zip dist node_modules package-lock.json package.json",
     "sentry:sourcemaps": "sentry-cli sourcemaps inject --org dpla --project thumbnail-api ./dist && sentry-cli sourcemaps upload --org dpla --project thumbnail-api ./dist"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.717.0",
+    "@aws-sdk/client-s3": "^3.716.0",
     "@aws-sdk/client-sqs": "^3.716.0",
-    "@aws-sdk/s3-request-presigner": "^3.717.0",
+    "@aws-sdk/s3-request-presigner": "^3.716.0",
     "@elastic/elasticsearch": "~7.9.1",
     "@sentry/cli": "^2.39.1",
     "@sentry/node": "^8.47.0",
     "@sentry/profiling-node": "^8.47.0",
-    "@types/async": "^3.2.3",
     "@types/express": "^4.17.8",
-    "@types/http-errors": "^2.0.0",
-    "debug": "4.4.0",
-    "express": "^4.21.2",
-    "http-errors": "^2.0.0"
+    "express": "^4.21.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
@@ -37,7 +33,6 @@
     "ava": "^6.2.0",
     "eslint": "^9.17.0",
     "eslint-config-prettier": "^9.1.0",
-    "globals": "^15.14.0",
     "prettier": "^3.4.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.7.2",
