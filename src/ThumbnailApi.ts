@@ -169,7 +169,6 @@ export class ThumbnailApi {
     itemId: string,
     expressResponse: express.Response,
   ): Promise<void> {
-    console.log("Serving from S3");
     expressResponse.set(getCacheHeaders(LONG_CACHE_TIME));
     const s3url: string = await this.getS3Url(itemId);
     const response: Response = await this.getRemoteImagePromise(s3url);
@@ -188,8 +187,7 @@ export class ThumbnailApi {
 
   // performs a head request against s3. it either works, and we grab the data
   // out from s3, or it fails, and we get it from the contributor.
-  async lookupImageInS3(id: string): Promise<HeadObjectCommandOutput> {
-    console.log("IN: lookupImageInS3");
+  lookupImageInS3(id: string): Promise<HeadObjectCommandOutput> {
     const params: HeadObjectCommandInput = {
       Bucket: this.bucket,
       Key: getS3Key(id),
@@ -198,8 +196,7 @@ export class ThumbnailApi {
     return this.s3Client.send(commandInput);
   }
 
-  async getS3Url(id: string): Promise<string> {
-    console.log("IN: getS3Url");
+  getS3Url(id: string): Promise<string> {
     const params: GetObjectCommandInput = {
       Bucket: this.bucket,
       Key: getS3Key(id),
@@ -208,20 +205,16 @@ export class ThumbnailApi {
     return getSignedUrl(this.s3Client, request);
   }
 
-  async queueToThumbnailCache(
-    id: string,
-    url: string,
-  ): Promise<SendMessageResult> {
-    console.log("IN: queueToThumbnailCache");
+  queueToThumbnailCache(id: string, url: string): Promise<SendMessageResult> {
     const msg = JSON.stringify({ id: id, url: url });
-    const request = new SendMessageCommand({
+    const request: SendMessageCommand = new SendMessageCommand({
       MessageBody: msg,
       QueueUrl: this.sqsURL,
     });
     return this.sqsClient.send(request);
   }
 
-  async lookupItemInElasticsearch(id: string): Promise<ApiResponse> {
+  lookupItemInElasticsearch(id: string): Promise<ApiResponse> {
     return this.esClient.get({
       id: id,
       index: "dpla_alias",
@@ -231,7 +224,6 @@ export class ThumbnailApi {
 
   //issues async request for the image (could be s3 or provider)
   async getRemoteImagePromise(imageUrl: string): Promise<Response> {
-    console.log("IN: getRemoteImagePromise");
     const request: Request = new Request(imageUrl);
     request.headers.append("User-Agent", "DPLA Image Proxy");
     const response = await fetch(request, {
@@ -253,7 +245,6 @@ export class ThumbnailApi {
 export function getImageUrlFromSearchResult(
   record: DplaMap,
 ): string | undefined {
-  console.log("IN: getImageUrlFromSearchResult");
   //using ?. operator short circuits the result in object to "undefined"
   //rather than throwing an exception when the property doesn't exist
   const obj: string | string[] | undefined = record._source?.object;
