@@ -110,7 +110,7 @@ export class ThumbnailApi {
 
     // Don't await on this, it's a side effect to make the image be in S3
     // next time, technically not the end of the world if this fails.
-    this.queueToThumbnailCache(itemId, imageUrl).catch((error) => {
+    this.queueToThumbnailCache(itemId, imageUrl).catch((error: unknown) => {
       console.error("SQS error for %s", itemId, error);
     });
 
