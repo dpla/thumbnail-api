@@ -28,7 +28,7 @@ const esClient: Client = new Client({
 
 const thumb = new ThumbnailApi("dpla-thumbnails", "", s3, sqs, esClient);
 
-test("getRemoteImagePromise", async (t) => {
+test("getRemoteImagePromise", async (t: ExecutionContext) => {
   const url =
     "https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png";
   const result: Response = await thumb.getRemoteImagePromise(url);
@@ -52,7 +52,7 @@ test("lookupImageInS3", async (t: ExecutionContext) => {
 
   for await (const page of paginator ?? []) {
     for (const obj of page.Contents ?? []) {
-      if (obj.Key) {
+      if (obj?.Key) {
         list.push(obj.Key);
       }
     }
@@ -68,7 +68,7 @@ test("lookupImageInS3", async (t: ExecutionContext) => {
   t.pass(); //this will fail if the promise rejects.
 });
 
-test("getS3Url", async (t) => {
+test("getS3Url", async (t: ExecutionContext) => {
   const id = "0000f6ee924d7b60bbfefbc670575653";
   const request: HeadObjectCommand = new HeadObjectCommand({
     Bucket: "dpla-thumbnails",
@@ -85,5 +85,5 @@ test("getS3Url", async (t) => {
   const blob = await response.blob();
   const bytes = await blob.bytes();
   md5.update(bytes);
-  t.is(md5.digest("hex"), origMD5!);
+  t.is(md5.digest("hex"), origMD5);
 });
