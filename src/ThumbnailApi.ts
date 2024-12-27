@@ -176,11 +176,9 @@ export class ThumbnailApi {
     const body = response.body;
     if (body != null) {
       Readable.from(body).pipe(expressResponse, { end: true });
-      return;
     } else {
       const error = new Error("Response had no body.");
       sendError(expressResponse, itemId, 502, error);
-      return;
     }
   }
 
