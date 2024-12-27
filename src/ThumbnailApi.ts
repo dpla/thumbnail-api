@@ -12,6 +12,7 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import {
   SendMessageCommand,
+  SendMessageCommandInput,
   SendMessageResult,
   SQSClient,
 } from "@aws-sdk/client-sqs";
@@ -207,10 +208,11 @@ export class ThumbnailApi {
 
   queueToThumbnailCache(id: string, url: string): Promise<SendMessageResult> {
     const msg = JSON.stringify({ id: id, url: url });
-    const request: SendMessageCommand = new SendMessageCommand({
+    const params = {
       MessageBody: msg,
       QueueUrl: this.sqsURL,
-    });
+    } as SendMessageCommandInput;
+    const request: SendMessageCommand = new SendMessageCommand(params);
     return this.sqsClient.send(request);
   }
 

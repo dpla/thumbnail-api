@@ -8,6 +8,7 @@
     "skipLibCheck": true,
     "moduleResolution": "node16",
     "outDir": "dist",
+    "allowImportingTsExtensions": true,
     "allowJs": false,
     "checkJs": false,
     "sourceMap": true,

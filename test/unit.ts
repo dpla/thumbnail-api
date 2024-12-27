@@ -6,7 +6,7 @@ import {
   getItemId,
   getS3Key,
   isProbablyURL,
-} from "../src/ThumbnailApi";
+} from "../src/ThumbnailApi.ts";
 
 test("getS3Key", (t) => {
   const testData: object = {

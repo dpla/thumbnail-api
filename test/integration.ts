@@ -1,7 +1,7 @@
 import test, { ExecutionContext } from "ava";
 import { Paginator } from "@smithy/types";
 import crypto from "crypto";
-import { ThumbnailApi } from "../src/ThumbnailApi";
+import { ThumbnailApi } from "../src/ThumbnailApi.ts";
 import { Client } from "@elastic/elasticsearch";
 import {
   S3Client,
