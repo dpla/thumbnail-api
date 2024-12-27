@@ -23,4 +23,19 @@ jobs:
     - run: npm install tsc -g
     - run: npm run build --if-present
     - run: npm run test
+    - name: Run Codacy Analysis CLI
+      uses: codacy/codacy-analysis-cli-action@97bf5df3c09e75f5bcd72695998f96ebd701846e
+      with:
+        output: results.sarif
+        format: sarif
+        # Adjust severity of non-security issues
+        gh-code-scanning-compat: true
+        # Force 0 exit code to allow SARIF file generation
+        # This will hand over control about PR rejection to the GitHub side
+        max-allowed-issues: 2147483647
+    # Upload the SARIF file generated in the previous step
+    - name: Upload SARIF results file
+      uses: github/codeql-action/upload-sarif@3096afedf9873361b2b2f65e1445b13272c83eb8
+      with:
+        sarif_file: results.sarif
 
