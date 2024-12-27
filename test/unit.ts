@@ -1,6 +1,7 @@
 import { ExecutionContext, default as test } from "ava";
 
 import {
+  DplaMap,
   getCacheHeaders,
   getImageUrlFromSearchResult,
   getItemId,
@@ -8,18 +9,22 @@ import {
   isProbablyURL,
 } from "../src/ThumbnailApi";
 
-test("getS3Key", (t) => {
-  const testData: object = {
-    "223ea5040640813b6c8204d1e0778d30":
+test("getS3Key", (t: ExecutionContext) => {
+  const testData = new Map<string, string>([
+    [
+      "223ea5040640813b6c8204d1e0778d30",
       "2/2/3/e/223ea5040640813b6c8204d1e0778d30.jpg",
-    "11111111111111111111111111111111":
+    ],
+    [
+      "11111111111111111111111111111111",
       "1/1/1/1/11111111111111111111111111111111.jpg",
-  };
+    ],
+  ]);
 
-  Object.entries(testData).forEach(([key, value]) => {
+  for (const [key, value] of testData) {
     const result: string = getS3Key(key);
     t.is(result, value, `Failed for ${key}`);
-  });
+  }
 });
 
 test("getItemId", (t: ExecutionContext): void => {
@@ -46,13 +51,13 @@ test("getItemId", (t: ExecutionContext): void => {
 });
 
 test("getImageUrlFromSearchResult: String", (t: ExecutionContext): void => {
-  const test1 = {
+  const test = {
     _source: {
       object: "https://google.com",
     },
-  };
-  const result1: string | undefined = getImageUrlFromSearchResult(test1);
-  t.is(result1, "https://google.com");
+  } as DplaMap;
+  const result: string | undefined = getImageUrlFromSearchResult(test);
+  t.is(result, "https://google.com");
 });
 
 test("getImageUrlFromSearchResult: Array", (t: ExecutionContext): void => {

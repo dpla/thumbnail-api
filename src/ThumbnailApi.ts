@@ -362,10 +362,10 @@ export function sendError(
   res.end();
 }
 
-interface UnderBarSource {
+export interface UnderBarSource {
   object?: string | string[];
 }
 
-interface DplaMap {
+export interface DplaMap {
   ["_source"]?: UnderBarSource;
 }
