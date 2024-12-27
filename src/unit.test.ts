@@ -7,7 +7,7 @@ import {
   getItemId,
   getS3Key,
   isProbablyURL,
-} from "../src/ThumbnailApi";
+} from "./ThumbnailApi";
 
 test("getS3Key", (t: ExecutionContext) => {
   const testData = new Map<string, string>([

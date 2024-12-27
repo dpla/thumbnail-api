@@ -3,29 +3,29 @@
     "lib": [
       "es2023"
     ],
-    "module": "node16",
-    "target": "es2022",
+    "module": "nodenext",
+
+    "target": "es2016",
+    "forceConsistentCasingInFileNames": true,
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "moduleResolution": "node16",
     "outDir": "dist",
-    "allowJs": false,
-    "checkJs": false,
+    "allowJs": true,
+    "checkJs": true,
     "sourceMap": true,
-    "inlineSources": true,
-    "strictNullChecks": true,
     // Set `sourceRoot` to  "/" to strip the build path prefix
     // from generated source code references.
     // This improves issue grouping in Sentry.
-    //"sourceRoot": "/"
+    "sourceRoot": "/"
   },
   "include": [
+    "eslint.config.mjs",
     "src/**/*",
-    "test/**/*"
   ],
   "exclude": [
     "node_modules",
+    "test",
     "dist/**/*",
     "**/node_modules/*"
   ]

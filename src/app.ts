@@ -94,7 +94,7 @@ function doWorker() {
   Sentry.setupExpressErrorHandler(app);
 
   const server = app.listen(port, (): void => {
-    console.log(`Server is listening on ${port}`);
+    console.log(`Server is listening on ${String(port)}`);
   });
 
   // how long the server waits before the client needs to finish sending the request
@@ -107,18 +107,24 @@ function doWorker() {
     });
   };
 
-  process.on("SIGINT", () => handleExit("SIGINT"));
-  process.on("SIGQUIT", () => handleExit("SIGQUIT"));
-  process.on("SIGTERM", () => handleExit("SIGTERM"));
+  process.on("SIGINT", () => {
+    handleExit("SIGINT");
+  });
+  process.on("SIGQUIT", () => {
+    handleExit("SIGQUIT");
+  });
+  process.on("SIGTERM", () => {
+    handleExit("SIGTERM");
+  });
 }
 
 function doFork(numCPUs: number): void {
   cluster
     .on("exit", (worker: Worker): void => {
-      console.log(`worker ${worker.process.pid} died`);
+      console.log(`worker ${String(worker.process.pid)} died`);
     })
     .on("online", (worker: Worker): void => {
-      console.log(`worker ${worker.process.pid} online`);
+      console.log(`worker ${String(worker.process.pid)} online`);
     });
   for (let i = 0; i < numCPUs; i++) {
     cluster.fork();

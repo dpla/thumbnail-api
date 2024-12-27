@@ -1,7 +1,7 @@
 import test, { ExecutionContext } from "ava";
 import { Paginator } from "@smithy/types";
 import crypto from "crypto";
-import { ThumbnailApi } from "../src/ThumbnailApi";
+import { ThumbnailApi } from "./ThumbnailApi";
 import { Client } from "@opensearch-project/opensearch";
 import {
   S3Client,
@@ -51,9 +51,9 @@ test("lookupImageInS3", async (t: ExecutionContext) => {
     paginateListObjectsV2(config, request);
   const list: string[] = [];
 
-  for await (const page of paginator ?? []) {
+  for await (const page of paginator) {
     for (const obj of page.Contents ?? []) {
-      if (obj?.Key) {
+      if (obj.Key) {
         list.push(obj.Key);
       }
     }

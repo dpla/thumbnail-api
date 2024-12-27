@@ -59,10 +59,8 @@ export class ThumbnailApi {
 
     try {
       //ask S3 if it has a copy of the image
-      const result = await this.lookupImageInS3(itemId);
-      if (result) {
-        foundInS3 = true;
-      }
+      await this.lookupImageInS3(itemId);
+      foundInS3 = true;
     } catch (e) {
       if (!(e instanceof NotFound)) {
         const error = new Error("S3 communications failure.", { cause: e });
@@ -100,7 +98,7 @@ export class ThumbnailApi {
     }
 
     const imageUrl: string | undefined = getImageUrlFromSearchResult(
-      esResponse?.body as DplaMap,
+      esResponse.body as DplaMap,
     );
 
     if (imageUrl === undefined) {
@@ -130,7 +128,7 @@ export class ThumbnailApi {
     const status: number = translateStatusCode(remoteImageResponse.status);
 
     if (status > 399) {
-      const error = new Error(`Status ${status} from upstream.`);
+      const error = new Error(`Status ${String(status)} from upstream.`);
       sendError(expressResponse, itemId, 404, error);
       return;
     }
@@ -146,7 +144,7 @@ export class ThumbnailApi {
         !contentType.endsWith("octet-stream"))
     ) {
       const error = new Error(
-        `Got bad content type ${contentType} from upstream.`,
+        `Got bad content type ${String(contentType)} from upstream.`,
       );
       sendError(expressResponse, itemId, 404, error);
       return;
@@ -236,7 +234,7 @@ export class ThumbnailApi {
       return response;
     } else {
       throw new Error(
-        `Failed to read remote image status: ${response.status} ${response.statusText}`,
+        `Failed to read remote image status: ${String(response.status)} ${response.statusText}`,
       );
     }
   }
@@ -305,7 +303,7 @@ export function isProbablyURL(s: string): boolean {
 export function getCacheHeaders(seconds: number): Map<string, string> {
   const now = new Date().getTime();
   const expirationDateString = new Date(now + 1000 * seconds).toUTCString();
-  const cacheControl = `public, max-age=${seconds}`;
+  const cacheControl = `public, max-age=${String(seconds)}`;
   return new Map([
     ["Cache-Control", cacheControl],
     ["Expires", expirationDateString],
@@ -321,8 +319,9 @@ export function getHeadersFromTarget(headers: Headers): Map<string, string> {
     headers: Headers,
     header: string,
   ) => {
-    if (headers.has(header)) {
-      result.set(header, headers.get(header)!);
+    const value = headers.get(header);
+    if (value) {
+      result.set(header, value);
     }
   };
 
