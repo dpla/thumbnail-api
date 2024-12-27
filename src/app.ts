@@ -1,10 +1,10 @@
-import "./instrumentation"; //IMPORTANT: keep this first
+import "./instrumentation.js"; //IMPORTANT: keep this first
 import * as Sentry from "@sentry/node";
 import express, { Express } from "express";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
-import { ThumbnailApi } from "./ThumbnailApi";
-import { Client } from "@elastic/elasticsearch";
+import { ThumbnailApi } from "./ThumbnailApi.js";
+import { Client, ClientOptions } from "@opensearch-project/opensearch";
 import { default as cluster, Worker } from "node:cluster";
 import { cpus } from "node:os";
 
@@ -54,7 +54,8 @@ function doWorker() {
     maxRetries: ES_RETRIES,
     requestTimeout: ES_RESPONSE_TIMEOUT,
     sniffOnStart: true,
-  });
+    sniffOnConnectionFault: true,
+  } as ClientOptions);
 
   const thumbnailApi: ThumbnailApi = new ThumbnailApi(
     bucket,
@@ -79,8 +80,6 @@ function doWorker() {
   };
 
   app.get("/thumb/*", (req: express.Request, res: express.Response) => {
-    console.log("IN: thumb");
-    console.log(req.path);
     handler(req, res)
       .then(() => Promise.resolve())
       .catch((reason: unknown) => {

@@ -1,8 +1,8 @@
 import test, { ExecutionContext } from "ava";
 import { Paginator } from "@smithy/types";
 import crypto from "crypto";
-import { ThumbnailApi } from "../src/ThumbnailApi.ts";
-import { Client } from "@elastic/elasticsearch";
+import { ThumbnailApi } from "../src/ThumbnailApi";
+import { Client } from "@opensearch-project/opensearch";
 import {
   S3Client,
   paginateListObjectsV2,
@@ -21,6 +21,7 @@ const s3: S3Client = new S3Client(options as S3ClientConfig);
 const sqs: SQSClient = new SQSClient(options as SQSClientConfig);
 const esClient: Client = new Client({
   node: process.env.ELASTIC_URL ?? "http://search.internal.dp.la:9200/",
+
   maxRetries: 5,
   requestTimeout: 60000,
   sniffOnStart: true,

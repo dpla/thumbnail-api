@@ -1,5 +1,5 @@
 import * as express from "express";
-import { Client, ApiResponse } from "@elastic/elasticsearch";
+import { Client, ApiResponse } from "@opensearch-project/opensearch";
 import {
   GetObjectCommand,
   GetObjectCommandInput,
