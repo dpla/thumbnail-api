@@ -113,15 +113,21 @@ test("isProbablyURL", (t: ExecutionContext) => {
     new TestCase("http://foo.com", true),
     new TestCase("https://foo.com", true),
   ].forEach((testCase: TestCase): void => {
-    t.is(isProbablyURL(testCase.url), testCase.result);
+    const result = isProbablyURL(testCase.url);
+    t.is(result, testCase.result);
   });
 });
 
 test("getCacheHeaders", (t: ExecutionContext): void => {
   const result: Map<string, string> = getCacheHeaders(2);
   t.is(result.get("Cache-Control"), "public, max-age=2");
-  t.regex(
-    result.get("Expires")!,
-    /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun),\W\d{2}\W(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\W\d{4}\W\d{2}:\d{2}:\d{2}\WGMT$/,
-  );
+  const expires = result.get("Expires");
+  if (expires) {
+    t.regex(
+      expires,
+      /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun),\W\d{2}\W(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\W\d{4}\W\d{2}:\d{2}:\d{2}\WGMT$/,
+    );
+  } else {
+    t.fail("No Expires header found");
+  }
 });
