@@ -286,7 +286,7 @@ export function getS3Key(id: string): string {
   return prefix + "/" + id + ".jpg";
 }
 
-export function isProbablyURL(s: string): boolean {
+export function isProbablyURL(s: string | undefined): boolean {
   if (!s) return false;
   if (!URL_PATTERN.test(s)) return false;
   try {

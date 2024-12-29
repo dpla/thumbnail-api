@@ -113,8 +113,8 @@ test.each([
   ["http://foo.com", true],
   ["https://foo.com", true],
   ["https://", false],
-  [null, false],
-])("isProbablyURL", (input, output) => {
+  [undefined, false],
+])("isProbablyURL", (input: string | undefined, output) => {
   expect(isProbablyURL(input)).toBe(output);
 });
 
