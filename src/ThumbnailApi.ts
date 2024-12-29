@@ -167,7 +167,6 @@ export class ThumbnailApi {
     Readable.from(body).pipe(expressResponse, { end: true });
   }
 
-  //bookmark
   async serveItemFromS3(
     itemId: string,
     expressResponse: express.Response,
