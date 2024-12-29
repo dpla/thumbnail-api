@@ -16,7 +16,12 @@ import {
   HeadObjectCommandOutput,
   S3Client,
 } from "@aws-sdk/client-s3";
-import { SQSClient } from "@aws-sdk/client-sqs";
+import {
+  SendMessageCommand,
+  SendMessageCommandOutput,
+  SendMessageResult,
+  SQSClient,
+} from "@aws-sdk/client-sqs";
 jest.mock("@aws-sdk/s3-request-presigner");
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import * as matchers from "jest-extended";
@@ -120,7 +125,7 @@ test("getCacheHeaders", (): void => {
 });
 
 describe("ThumbnailApi class tests", () => {
-  const mockOsClient = jest.mocked(Client);
+  const mockOpenSearchClient = new Client({ node: "http://localhost:9200" });
   const mockS3Client = mockClient(S3Client);
   const mockSqsClient = mockClient(SQSClient);
   const api = new ThumbnailApi(
@@ -128,13 +133,13 @@ describe("ThumbnailApi class tests", () => {
     fakeSQS,
     mockS3Client as unknown as S3Client,
     mockSqsClient as unknown as SQSClient,
-    mockOsClient as unknown as Client,
+    mockOpenSearchClient as unknown as Client,
   );
 
   beforeEach(() => {
     mockS3Client.reset();
     mockSqsClient.reset();
-    mockOsClient.mockReset();
+    jest.resetAllMocks();
   });
 
   test("lookupImageInS3", async () => {
@@ -158,5 +163,31 @@ describe("ThumbnailApi class tests", () => {
       expect.toBeObject(),
     );
     expect(result).toBe(url);
+  });
+
+  test("queueToThumbnailCache", async () => {
+    const id = "12345";
+    const url = "https://example.com/12345";
+    mockSqsClient
+      .on(SendMessageCommand)
+      .resolves({} as SendMessageCommandOutput);
+    const result: SendMessageResult = await api.queueToThumbnailCache(id, url);
+    expect(result).toStrictEqual({});
+    expect(mockSqsClient).toHaveReceivedCommandWith(SendMessageCommand, {
+      MessageBody: JSON.stringify({ id: id, url: url }),
+      QueueUrl: fakeSQS,
+    });
+  });
+
+  test("lookupItemInElasticsearch", async () => {
+    const fn = jest.fn().mockReturnValue({});
+    mockOpenSearchClient.get = fn;
+    const id = "12345";
+    await api.lookupItemInElasticsearch(id);
+    expect(fn).toHaveBeenCalledWith({
+      id: id,
+      index: "dpla_alias",
+      _source: ["id", "object"],
+    });
   });
 });

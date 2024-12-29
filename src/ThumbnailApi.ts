@@ -1,5 +1,9 @@
 import * as express from "express";
-import { Client, ApiResponse } from "@opensearch-project/opensearch";
+import {
+  Client,
+  ApiResponse,
+  RequestParams,
+} from "@opensearch-project/opensearch";
 import {
   GetObjectCommand,
   GetObjectCommandInput,
@@ -217,7 +221,7 @@ export class ThumbnailApi {
       id: id,
       index: "dpla_alias",
       _source: ["id", "object"],
-    });
+    } as RequestParams.Get);
   }
 
   //issues async request for the image (could be s3 or provider)
