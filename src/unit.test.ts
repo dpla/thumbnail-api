@@ -25,6 +25,7 @@ import {
 jest.mock("@aws-sdk/s3-request-presigner");
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import * as matchers from "jest-extended";
+import { pass } from "jest-extended";
 expect.extend(matchers);
 
 const fakeBucket = "foobar";
@@ -189,5 +190,35 @@ describe("ThumbnailApi class tests", () => {
       index: "dpla_alias",
       _source: ["id", "object"],
     });
+  });
+
+  test("getRemoteImagePromise", async () => {
+    const url = "http://example.com/12345";
+    const expectedResult = {
+      ok: true,
+    } as unknown as Response;
+    const fetch = jest.fn(() => Promise.resolve(expectedResult)) as jest.Mock;
+    global.fetch = fetch;
+    const result = await api.getRemoteImagePromise(url);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(result).toBe(expectedResult);
+  });
+
+  test("failed getRemoteImagePromise", () => {
+    const url = "https://example.com/12345";
+    const expectedResult = {
+      ok: false,
+      status: 419,
+      statusText: "I'm a teapot",
+    } as unknown as Response;
+    global.fetch = jest.fn(() => Promise.resolve(expectedResult)) as jest.Mock;
+    api.getRemoteImagePromise(url).then(
+      () => {
+        fail("Not rejected.");
+      },
+      () => {
+        pass("Success.");
+      },
+    );
   });
 });
