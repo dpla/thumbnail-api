@@ -6,13 +6,18 @@ import {
   getItemId,
   getS3Key,
   isProbablyURL,
+  sendError,
   ThumbnailApi,
   translateStatusCode,
 } from "./ThumbnailApi";
-import { mockClient } from "aws-sdk-client-mock";
-import "aws-sdk-client-mock-jest";
+
+import { Response } from "express";
+
 jest.mock("@opensearch-project/opensearch");
 import { Client } from "@opensearch-project/opensearch";
+
+import { mockClient } from "aws-sdk-client-mock";
+import "aws-sdk-client-mock-jest";
 import {
   HeadObjectCommand,
   HeadObjectCommandOutput,
@@ -24,14 +29,12 @@ import {
   SendMessageResult,
   SQSClient,
 } from "@aws-sdk/client-sqs";
+
 jest.mock("@aws-sdk/s3-request-presigner");
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import * as matchers from "jest-extended";
-import { pass } from "jest-extended";
-expect.extend(matchers);
 
-const fakeBucket = "foobar";
-const fakeSQS = "bazbuzz";
+import * as matchers from "jest-extended";
+expect.extend(matchers);
 
 test.each([
   [
@@ -162,8 +165,31 @@ test("translateStatusCode", () => {
   expect(translateStatusCode(999)).toBe(502);
 });
 
+test("sendError", () => {
+  const consoleSpy = jest.spyOn(console, "error").mockImplementation();
+  const mockResponse = {
+    didEnd: false,
+    code: 0,
+    sendStatus: function (code: number) {
+      this.code = code;
+    },
+    end: function () {
+      this.didEnd = true;
+    },
+  };
+  const itemId = "12345";
+  const code = 6789;
+  const error = new Error("send me");
+  sendError(mockResponse as unknown as Response, itemId, code, error);
+  expect(consoleSpy).toHaveBeenCalledTimes(1);
+  expect(mockResponse.code).toBe(code);
+  expect(mockResponse.didEnd).toBe(true);
+});
+
 describe("ThumbnailApi class tests", () => {
-  const mockOpenSearchClient = new Client({ node: "http://localhost:9200" });
+  const fakeBucket = "foobar";
+  const fakeSQS = "bazbuzz";
+  const openSearchClient = new Client({ node: "http://localhost:9200" });
   const mockS3Client = mockClient(S3Client);
   const mockSqsClient = mockClient(SQSClient);
   const api = new ThumbnailApi(
@@ -171,7 +197,7 @@ describe("ThumbnailApi class tests", () => {
     fakeSQS,
     mockS3Client as unknown as S3Client,
     mockSqsClient as unknown as SQSClient,
-    mockOpenSearchClient as unknown as Client,
+    openSearchClient,
   );
 
   beforeEach(() => {
@@ -219,7 +245,7 @@ describe("ThumbnailApi class tests", () => {
 
   test("lookupItemInElasticsearch", async () => {
     const fn = jest.fn().mockReturnValue({});
-    mockOpenSearchClient.get = fn;
+    openSearchClient.get = fn;
     const id = "12345";
     await api.lookupItemInElasticsearch(id);
     expect(fn).toHaveBeenCalledWith({
@@ -250,12 +276,8 @@ describe("ThumbnailApi class tests", () => {
     } as unknown as Response;
     global.fetch = jest.fn(() => Promise.resolve(expectedResult)) as jest.Mock;
     api.getRemoteImagePromise(url).then(
-      () => {
-        fail("Not rejected.");
-      },
-      () => {
-        pass("Success.");
-      },
+      () => fail("Not rejected."),
+      () => undefined,
     );
   });
 });
