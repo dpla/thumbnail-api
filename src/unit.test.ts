@@ -11,7 +11,8 @@ import {
   translateStatusCode,
 } from "./ThumbnailApi";
 
-import { Response } from "express";
+import * as express from "express";
+import { Response as ExpressResponse } from "jest-express/lib/response";
 
 jest.mock("@opensearch-project/opensearch");
 import { Client } from "@opensearch-project/opensearch";
@@ -101,6 +102,15 @@ test("getImageUrlFromSearchResult: Empty result", () => {
   expect(getImageUrlFromSearchResult(test)).toBe(undefined);
 });
 
+test("getImageUrlFromSearchResult: Wild type", () => {
+  const test = {
+    _source: {
+      object: { whoops: "blah:hole" },
+    },
+  } as unknown as DplaMap;
+  expect(getImageUrlFromSearchResult(test)).toBe(undefined);
+});
+
 test("getImageUrlFromSearchResult: Record has no thumbnail", () => {
   const test = {
     _source: {
@@ -167,23 +177,15 @@ test("translateStatusCode", () => {
 
 test("sendError", () => {
   const consoleSpy = jest.spyOn(console, "error").mockImplementation();
-  const mockResponse = {
-    didEnd: false,
-    code: 0,
-    sendStatus: function (code: number) {
-      this.code = code;
-    },
-    end: function () {
-      this.didEnd = true;
-    },
-  };
+  const mockResponse = new ExpressResponse();
   const itemId = "12345";
   const code = 6789;
   const error = new Error("send me");
-  sendError(mockResponse as unknown as Response, itemId, code, error);
+  sendError(mockResponse as unknown as express.Response, itemId, code, error);
   expect(consoleSpy).toHaveBeenCalledTimes(1);
-  expect(mockResponse.code).toBe(code);
-  expect(mockResponse.didEnd).toBe(true);
+  expect(mockResponse.sendStatus).toHaveBeenCalledWith(code);
+  expect(mockResponse.end).toHaveBeenCalledTimes(1);
+  consoleSpy.mockRestore();
 });
 
 describe("ThumbnailApi class tests", () => {
@@ -259,7 +261,7 @@ describe("ThumbnailApi class tests", () => {
     const url = "http://example.com/12345";
     const expectedResult = {
       ok: true,
-    } as unknown as Response;
+    } as unknown as Response; //this is a fetch Response
     const fetch = jest.fn(() => Promise.resolve(expectedResult)) as jest.Mock;
     global.fetch = fetch;
     const result = await api.getRemoteImagePromise(url);
@@ -273,11 +275,81 @@ describe("ThumbnailApi class tests", () => {
       ok: false,
       status: 419,
       statusText: "I'm a teapot",
-    } as unknown as Response;
+    } as unknown as Response; //this is a fetch Response
     global.fetch = jest.fn(() => Promise.resolve(expectedResult)) as jest.Mock;
     api.getRemoteImagePromise(url).then(
       () => fail("Not rejected."),
       () => undefined,
     );
   });
+});
+
+describe("Business logic tests", () => {
+  // const fakeBucket = "foobar";
+  // const fakeSQS = "bazbuzz";
+  // const openSearchClient = new Client({ node: "http://localhost:9200" });
+  // const mockS3Client = mockClient(S3Client);
+  // const mockSqsClient = mockClient(SQSClient);
+  //
+  // const itemId = "12345";
+  // const itemUrl = "https://example.com/" + itemId;
+  // const mockFetchResponse = { status: 200 } as Response; //this is a fetch response
+  // const mockHeaders = new Map([
+  //   ["Content-type", "image/jpeg"],
+  //   ["Last-Modified", "2"],
+  // ]);
+  //
+  // jest.mock("./ThumbnailApi", () => {
+  //   const originalModule: ThumbnailApi = jest.requireActual("./ThumbnailApi");
+  //   return {
+  //     __esModule: true,
+  //     ...originalModule,
+  //   } as unknown as typeof ThumbnailApi;
+  // });
+  //
+  // const api = new ThumbnailApi(
+  //   fakeBucket,
+  //   fakeSQS,
+  //   mockS3Client as unknown as S3Client,
+  //   mockSqsClient as unknown as SQSClient,
+  //   openSearchClient,
+  // );
+  //
+  // api.getS3Url = jest.fn().mockImplementation(() => Promise.resolve(itemUrl));
+  //
+  // api.getRemoteImagePromise = jest
+  //   .fn()
+  //   .mockImplementation(() => Promise.resolve(mockFetchResponse));
+  //
+  //api.getHeadersFromTarget = jest.fn().mockImplementation(() => mockHeaders))
+  /*
+  async serveItemFromS3(
+    itemId: string,
+    expressResponse: express.Response,
+  ): Promise<void> {
+    expressResponse.set(getCacheHeaders(LONG_CACHE_TIME));
+    const s3url: string = await this.getS3Url(itemId);
+    const response: Response = await this.getRemoteImagePromise(s3url);
+    expressResponse.status(translateStatusCode(response.status));
+    expressResponse.set(getHeadersFromTarget(response.headers));
+    const body = response.body;
+    if (body != null) {
+      Readable.from(body).pipe(expressResponse, { end: true });
+    } else {
+      const error = new Error("Response had no body.");
+      sendError(expressResponse, itemId, 502, error);
+    }
+  }
+   */
+  // test("serveItemFromS3", async () => {
+  //   const mockExpressResponse = new ExpressResponse();
+  //
+  //   await api.serveItemFromS3(
+  //     itemId,
+  //     mockExpressResponse as unknown as express.Response,
+  //   );
+  //
+  //   expect(mockExpressResponse.set).toHaveBeenCalledTimes(2);
+  //   expect(mockExpressResponse.end).toHaveBeenCalled();
+  // });
 });
