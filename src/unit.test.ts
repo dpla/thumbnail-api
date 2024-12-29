@@ -1,11 +1,13 @@
 import {
   DplaMap,
   getCacheHeaders,
+  getHeadersFromTarget,
   getImageUrlFromSearchResult,
   getItemId,
   getS3Key,
   isProbablyURL,
   ThumbnailApi,
+  translateStatusCode,
 } from "./ThumbnailApi";
 import { mockClient } from "aws-sdk-client-mock";
 import "aws-sdk-client-mock-jest";
@@ -125,6 +127,39 @@ test("getCacheHeaders", (): void => {
   expect(expires).toMatch(
     /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun),\W\d{2}\W(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\W\d{4}\W\d{2}:\d{2}:\d{2}\WGMT$/,
   );
+});
+
+test("getHeadersFromTarget: no headers", (): void => {
+  const headers = new Headers();
+  const result = getHeadersFromTarget(headers);
+  expect(result.size).toBe(0);
+});
+
+test("getHeadersFromTarget: Content-Type", (): void => {
+  const headers = new Headers();
+  const contentType = "Content-Type";
+  const imageJpeg = "image/jpeg";
+  headers.append(contentType, imageJpeg);
+  const result = getHeadersFromTarget(headers);
+  expect(result.size).toBe(1);
+  expect(result.get(contentType)).toBe(imageJpeg);
+});
+
+test("getHeadersFromTarget: Last-Modified", (): void => {
+  const headers = new Headers();
+  const lastModified = "Last-Modified";
+  const lastModifiedValue = "2";
+  headers.append(lastModified, lastModifiedValue);
+  const result = getHeadersFromTarget(headers);
+  expect(result.size).toBe(1);
+  expect(result.get(lastModified)).toBe(lastModifiedValue);
+});
+
+test("translateStatusCode", () => {
+  expect(translateStatusCode(200)).toBe(200);
+  expect(translateStatusCode(404)).toBe(404);
+  expect(translateStatusCode(410)).toBe(404);
+  expect(translateStatusCode(999)).toBe(502);
 });
 
 describe("ThumbnailApi class tests", () => {
