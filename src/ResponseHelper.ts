@@ -5,7 +5,11 @@ export class ResponseHelper {
   FETCH_TIMEOUT = 10 * 1000; // 10 seconds;
 
   pipe(body: ReadableStream, expressResponse: express.Response): Promise<void> {
-    Readable.from(body).pipe(expressResponse, { end: true });
+    try {
+      Readable.fromWeb(body).pipe(expressResponse).end();
+    } catch {
+      expressResponse.end();
+    }
     return Promise.resolve();
   }
 
