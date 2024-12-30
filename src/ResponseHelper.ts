@@ -1,5 +1,13 @@
+import { Readable } from "stream";
+import express from "express";
+
 export class ResponseHelper {
   FETCH_TIMEOUT = 10 * 1000; // 10 seconds;
+
+  pipe(body: ReadableStream, expressResponse: express.Response): Promise<void> {
+    Readable.from(body).pipe(expressResponse, { end: true });
+    return Promise.resolve();
+  }
 
   //issues async request for the image (could be s3 or provider)
   async getRemoteImagePromise(imageUrl: string): Promise<Response> {

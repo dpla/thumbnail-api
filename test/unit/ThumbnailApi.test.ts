@@ -1,31 +1,33 @@
 import { ThumbnailApi } from "../../src/ThumbnailApi";
 
-import * as express from "express";
-import { Response as ExpressResponse } from "jest-express/lib/response";
-
 import * as matchers from "jest-extended";
+expect.extend(matchers);
+
 import { DplaApi } from "../../src/DplaApi";
 import { ThumbnailStorage } from "../../src/ThumbnailStorage";
 import { ThumbnailCacheQueue } from "../../src/ThumbnailCacheQueue";
 import { ResponseHelper } from "../../src/ResponseHelper";
-expect.extend(matchers);
+import { S3Client } from "@aws-sdk/client-s3";
+
+import * as express from "express";
+import { Response as ExpressResponse } from "jest-express/lib/response";
+import { SQSClient } from "@aws-sdk/client-sqs";
 
 describe("ThumbnailApi", () => {
   const dplaApi = jest.mocked(DplaApi);
-  const thumbnailStorage = jest.mocked(ThumbnailStorage);
+  const mockS3Client = jest.mocked(S3Client);
+  const thumbnailStorage = new ThumbnailStorage(
+    mockS3Client as unknown as S3Client,
+    "bucket",
+  );
   const thumbnailCacheQueue = jest.mocked(ThumbnailCacheQueue);
-  const responsePiper = jest.mocked(ResponseHelper);
-
+  const responseHelper = new ResponseHelper();
   const thumbnailApi = new ThumbnailApi(
     dplaApi as unknown as DplaApi,
     thumbnailStorage as unknown as ThumbnailStorage,
     thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
-    responsePiper as unknown as ResponseHelper,
+    responseHelper,
   );
-
-  beforeEach(() => {
-    jest.resetAllMocks();
-  });
 
   test.each([
     [
@@ -63,5 +65,95 @@ describe("ThumbnailApi", () => {
     expect(mockResponse.sendStatus).toHaveBeenCalledWith(code);
     expect(mockResponse.end).toHaveBeenCalledTimes(1);
     consoleSpy.mockRestore();
+  });
+});
+
+describe("ThumbnailApi async tests", () => {
+  const itemId = "12345";
+  const mockUrl = "https://example.com/12345";
+  const dplaApi = new DplaApi("", "");
+
+  dplaApi.getThumbnailUrl = (dplaId: string) => {
+    expect(dplaId).toBe(itemId);
+    return Promise.resolve(mockUrl);
+  };
+
+  const mockS3Client = jest.mocked(S3Client);
+  const mockSqsClient = jest.mocked(SQSClient);
+
+  const thumbnailStorage = new ThumbnailStorage(
+    mockS3Client as unknown as S3Client,
+    "bucket",
+  );
+
+  thumbnailStorage.getSignedS3Url = (id) => {
+    expect(id).toBe(itemId);
+    return Promise.resolve(mockUrl);
+  };
+
+  const thumbnailCacheQueue = new ThumbnailCacheQueue(
+    "",
+    mockSqsClient as unknown as SQSClient,
+  );
+
+  thumbnailCacheQueue.queueToThumbnailCache = (id: string, url: string) => {
+    expect(id).toBe(itemId);
+    expect(url).toBe(mockUrl);
+    return Promise.resolve();
+  };
+
+  const responseHelper = new ResponseHelper();
+
+  responseHelper.getRemoteImagePromise = (imageUrl: string) => {
+    return Promise.resolve(
+      new Response("12345", {
+        status: 200,
+        statusText: "OK",
+        headers: [
+          ["url", imageUrl],
+          ["content-type", "image/jpeg"],
+        ],
+      }),
+    );
+  };
+
+  responseHelper.getHeadersFromTarget = (headers: Headers) => {
+    expect(headers).toBeDefined();
+    return new Map([["content-type", "image/jpeg"]]);
+  };
+
+  const mockPipe = jest.fn();
+  responseHelper.pipe = mockPipe;
+
+  const mockExpressResponse = new ExpressResponse();
+
+  const thumbnailApi = new ThumbnailApi(
+    dplaApi as unknown as DplaApi,
+    thumbnailStorage as unknown as ThumbnailStorage,
+    thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+    responseHelper,
+  );
+
+  beforeEach(() => {
+    jest.resetAllMocks();
+    mockExpressResponse.resetMocked();
+  });
+
+  test("serveItemFromS3", async () => {
+    await thumbnailApi.serveItemFromS3(
+      itemId,
+      mockExpressResponse as unknown as express.Response,
+    );
+    expect(mockExpressResponse.set).toHaveBeenCalledTimes(2);
+    expect(mockPipe).toHaveBeenCalled();
+  });
+
+  test("proxyItemFromContributor", async () => {
+    await thumbnailApi.proxyItemFromContributor(
+      itemId,
+      mockExpressResponse as unknown as express.Response,
+    );
+    expect(mockExpressResponse.set).toHaveBeenCalledTimes(2);
+    expect(mockPipe).toHaveBeenCalled();
   });
 });

@@ -1,6 +1,5 @@
 import * as express from "express";
 
-import { Readable } from "stream";
 import { DplaApi } from "./DplaApi";
 import { ThumbnailStorage } from "./ThumbnailStorage";
 import { ThumbnailCacheQueue } from "./ThumbnailCacheQueue";
@@ -119,11 +118,9 @@ export class ThumbnailApi {
       return;
     }
 
-    Readable.from(remoteImageResponse.body as ReadableStream).pipe(
+    await this.responseHelper.pipe(
+      remoteImageResponse.body as ReadableStream,
       expressResponse,
-      {
-        end: true,
-      },
     );
   }
 
@@ -143,9 +140,11 @@ export class ThumbnailApi {
     expressResponse.set(
       this.responseHelper.getHeadersFromTarget(response.headers),
     );
-    const body = response.body;
-    if (body != null) {
-      Readable.from(body).pipe(expressResponse, { end: true });
+    if (this.responseHelper.okBody(response.body)) {
+      await this.responseHelper.pipe(
+        response.body as ReadableStream,
+        expressResponse,
+      );
     } else {
       const error = new Error("Response had no body.");
       this.sendError(expressResponse, itemId, 502, error);
