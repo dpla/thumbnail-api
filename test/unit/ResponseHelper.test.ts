@@ -100,39 +100,39 @@ describe("ResponseHelper", () => {
 
 describe("ResponseHelper getRemoteImagePromise tests", () => {
   test("getRemoteImagePromise: success", async () => {
-    const responseHelper = new ResponseHelper();
-    const mockFetch = jest.fn(() => Promise.resolve(fakeResult));
-    global.fetch = mockFetch as unknown as typeof fetch;
-
     const fakeResult = {
       ok: true,
     };
-
-    const imageUrl = "https://example.com/image.jpg";
-    const result = await responseHelper.getRemoteImagePromise(imageUrl);
-    expect(result).toBe(fakeResult);
-    mockFetch.mockRestore();
+    const mockFetch = jest.fn(() => Promise.resolve(fakeResult));
+    try {
+      const responseHelper = new ResponseHelper();
+      const imageUrl = "https://example.com/image.jpg";
+      global.fetch = mockFetch as unknown as typeof fetch;
+      const result = await responseHelper.getRemoteImagePromise(imageUrl);
+      expect(result).toBe(fakeResult);
+    } finally {
+      mockFetch.mockRestore();
+    }
   });
 
   test("getRemoteImagePromise: failure", async () => {
-    const responseHelper = new ResponseHelper();
-    const mockFetch = jest.fn(() => Promise.resolve(fakeResult));
-    global.fetch = mockFetch as unknown as typeof fetch;
-
     const fakeResult = {
       ok: false,
       status: 999,
       statusText: "ohnoes",
     };
+    const mockFetch = jest.fn(() => Promise.resolve(fakeResult));
 
-    const imageUrl = "https://example.com/image.jpg";
     expect.assertions(1);
-    await responseHelper
-      .getRemoteImagePromise(imageUrl)
-      .catch((error: unknown) => {
-        expect(error).toBeDefined();
-      });
-
-    mockFetch.mockRestore();
+    try {
+      const responseHelper = new ResponseHelper();
+      global.fetch = mockFetch as unknown as typeof fetch;
+      const imageUrl = "https://example.com/image.jpg";
+      await responseHelper.getRemoteImagePromise(imageUrl);
+    } catch (error: unknown) {
+      expect(error).toBeDefined();
+    } finally {
+      mockFetch.mockRestore();
+    }
   });
 });
