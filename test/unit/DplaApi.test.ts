@@ -85,4 +85,55 @@ describe("DplaApi", () => {
     const result = api.getApiUrl("foo");
     expect(result).toBe(`${fakeApiUrl}/v2/items/foo`);
   });
+
+  const notFound = {
+    ok: false,
+    status: 404,
+  };
+
+  const badUrl = {
+    ok: true,
+    status: 200,
+    json: () => {
+      return Promise.resolve({
+        count: 1,
+        docs: [{ object: "foo" }],
+      } as SearchResults);
+    },
+  };
+
+  const goodUrl = {
+    ok: true,
+    status: 200,
+    json: () => {
+      return Promise.resolve({
+        count: 1,
+        docs: [{ object: "https://foo.com" }],
+      } as SearchResults);
+    },
+  };
+
+  test.each([
+    [notFound, undefined],
+    [badUrl, undefined],
+    [goodUrl, "https://foo.com"],
+  ])(
+    "getThumbnailUrl",
+    async (fakeResult: object, expected: string | undefined) => {
+      const dplaId = "12345";
+      const mockFetch = jest.fn(() => Promise.resolve(fakeResult));
+
+      try {
+        global.fetch = mockFetch as unknown as typeof fetch;
+        const api = new DplaApi(fakeApiUrl, fakeToken);
+        api.getApiUrl = jest.fn(() => `${fakeApiUrl}/v2/items/${dplaId}`);
+        api.throwOnApiError = jest.fn();
+        api.throwOnSearchResults = jest.fn();
+        const result = await api.getThumbnailUrl(dplaId);
+        expect(result).toBe(expected);
+      } finally {
+        mockFetch.mockRestore();
+      }
+    },
+  );
 });
