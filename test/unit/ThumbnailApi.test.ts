@@ -148,12 +148,105 @@ describe("ThumbnailApi async tests", () => {
     expect(mockPipe).toHaveBeenCalled();
   });
 
-  test("proxyItemFromContributor", async () => {
+  test("proxyItemFromContributor: success", async () => {
     await thumbnailApi.proxyItemFromContributor(
       itemId,
       mockExpressResponse as unknown as express.Response,
     );
     expect(mockExpressResponse.set).toHaveBeenCalledTimes(2);
     expect(mockPipe).toHaveBeenCalled();
+  });
+
+  test("proxyItemFromContributor: success", async () => {
+    await thumbnailApi.proxyItemFromContributor(
+      itemId,
+      mockExpressResponse as unknown as express.Response,
+    );
+    expect(mockExpressResponse.set).toHaveBeenCalledTimes(2);
+    expect(mockPipe).toHaveBeenCalled();
+  });
+
+  test("proxyItemFromContributor: thumbnail lookup failure", async () => {
+    const dplaApi = new DplaApi("", "");
+    const getThumbnailUrl = jest.fn(() => {
+      throw new Error("oops");
+    });
+
+    dplaApi.getThumbnailUrl = getThumbnailUrl;
+
+    const thumbnailApiBadThumbnailCall = new ThumbnailApi(
+      dplaApi as unknown as DplaApi,
+      thumbnailStorage as unknown as ThumbnailStorage,
+      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      responseHelper,
+    );
+
+    const sendError = jest.fn();
+    thumbnailApiBadThumbnailCall.sendError = sendError;
+
+    await thumbnailApiBadThumbnailCall.proxyItemFromContributor(
+      itemId,
+      mockExpressResponse as unknown as express.Response,
+    );
+
+    expect(getThumbnailUrl).toHaveBeenCalled();
+    expect(sendError).toHaveBeenCalled();
+  });
+
+  test("proxyItemFromContributor: thumbnail undefined", async () => {
+    const dplaApi = new DplaApi("", "");
+    const getThumbnailUrl = jest.fn(() => {
+      return Promise.resolve(undefined);
+    });
+
+    dplaApi.getThumbnailUrl = getThumbnailUrl;
+
+    const thumbnailApiBadThumbnailCall = new ThumbnailApi(
+      dplaApi as unknown as DplaApi,
+      thumbnailStorage as unknown as ThumbnailStorage,
+      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      responseHelper,
+    );
+
+    const sendError = jest.fn();
+    thumbnailApiBadThumbnailCall.sendError = sendError;
+
+    await thumbnailApiBadThumbnailCall.proxyItemFromContributor(
+      itemId,
+      mockExpressResponse as unknown as express.Response,
+    );
+
+    expect(getThumbnailUrl).toHaveBeenCalled();
+    expect(sendError).toHaveBeenCalled();
+  });
+
+  test("thumbnailCacheQueue failed", async () => {
+    const consoleSpy = jest.spyOn(console, "error").mockImplementation();
+    const thumbnailCacheQueue = new ThumbnailCacheQueue(
+      "",
+      mockS3Client as unknown as SQSClient,
+    );
+
+    const queueToThumbnailCache = jest.fn(() => {
+      return Promise.reject(new Error("oops"));
+    });
+
+    thumbnailCacheQueue.queueToThumbnailCache = queueToThumbnailCache;
+
+    const thumbnailApiFailingCacheQueue = new ThumbnailApi(
+      dplaApi as unknown as DplaApi,
+      thumbnailStorage as unknown as ThumbnailStorage,
+      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      responseHelper,
+    );
+
+    await thumbnailApiFailingCacheQueue.proxyItemFromContributor(
+      itemId,
+      mockExpressResponse as unknown as express.Response,
+    );
+
+    expect(queueToThumbnailCache).toHaveBeenCalled();
+    expect(consoleSpy).toHaveBeenCalledTimes(1);
+    consoleSpy.mockRestore();
   });
 });
