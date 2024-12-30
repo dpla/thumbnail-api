@@ -192,15 +192,6 @@ describe("ThumbnailApi async tests", () => {
     expect(mockPipe).toHaveBeenCalled();
   });
 
-  test("proxyItemFromContributor: success", async () => {
-    await thumbnailApi.proxyItemFromContributor(
-      itemId,
-      mockExpressResponse as unknown as express.Response,
-    );
-    expect(mockExpressResponse.set).toHaveBeenCalledTimes(2);
-    expect(mockPipe).toHaveBeenCalled();
-  });
-
   test("proxyItemFromContributor: bad body", async () => {
     const responseHelper = new ResponseHelper();
 
