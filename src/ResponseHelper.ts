@@ -6,9 +6,9 @@ export class ResponseHelper {
 
   pipe(body: ReadableStream, expressResponse: express.Response): Promise<void> {
     try {
-      Readable.fromWeb(body).pipe(expressResponse).end();
+      Readable.fromWeb(body).pipe(expressResponse);
     } catch {
-      expressResponse.end();
+      console.error("Failed to pipe response from upstream.");
     }
     return Promise.resolve();
   }
