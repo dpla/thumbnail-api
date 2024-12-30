@@ -39,11 +39,11 @@ function doWorker() {
     process.env.SQS_URL ??
     "https://sqs.us-east-1.amazonaws.com/283408157088/thumbp-image";
 
-  const dplaApiUrl = process.env.API_URL ?? "https://api.dp.la";
-  const dplaApiKey = process.env.API_TOKEN;
+  const dplaApiUrl = process.env.DPLA_API_URL ?? "https://api.dp.la";
+  const dplaApiKey = process.env.DPLA_API_KEY;
 
   if (!dplaApiKey) {
-    throw new Error("DPLA API key not specified.");
+    throw new Error("Env variable DPLA_API_KEY not set.");
   }
 
   const app: Express = express();
