@@ -11,6 +11,7 @@ import { S3Client } from "@aws-sdk/client-s3";
 
 import * as express from "express";
 import { Response as ExpressResponse } from "jest-express/lib/response";
+import { Request as ExpressRequest } from "jest-express/lib/request";
 import { SQSClient } from "@aws-sdk/client-sqs";
 
 describe("ThumbnailApi", () => {
@@ -139,7 +140,7 @@ describe("ThumbnailApi async tests", () => {
     mockExpressResponse.resetMocked();
   });
 
-  test("serveItemFromS3", async () => {
+  test("serveItemFromS3: success", async () => {
     await thumbnailApi.serveItemFromS3(
       itemId,
       mockExpressResponse as unknown as express.Response,
@@ -148,6 +149,40 @@ describe("ThumbnailApi async tests", () => {
     expect(mockPipe).toHaveBeenCalled();
   });
 
+  test("serveItemFromS3: bad body", async () => {
+    const responseHelper = new ResponseHelper();
+
+    const okBody = jest.fn((): boolean => {
+      return false;
+    });
+
+    responseHelper.getRemoteImagePromise = jest.fn(() =>
+      Promise.resolve({
+        status: 200,
+      } as Response),
+    );
+    responseHelper.getHeadersFromTarget = jest.fn(() => new Map());
+    responseHelper.translateStatusCode = jest.fn(() => 200);
+    responseHelper.okBody = okBody;
+
+    const thumbnailApi = new ThumbnailApi(
+      dplaApi as unknown as DplaApi,
+      thumbnailStorage as unknown as ThumbnailStorage,
+      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      responseHelper,
+    );
+
+    const sendError = jest.fn();
+    thumbnailApi.sendError = sendError;
+
+    await thumbnailApi.serveItemFromS3(
+      itemId,
+      mockExpressResponse as unknown as express.Response,
+    );
+    expect(okBody).toHaveBeenCalledTimes(1);
+    expect(sendError).toHaveBeenCalledTimes(1);
+  });
+
   test("proxyItemFromContributor: success", async () => {
     await thumbnailApi.proxyItemFromContributor(
       itemId,
@@ -164,6 +199,83 @@ describe("ThumbnailApi async tests", () => {
     );
     expect(mockExpressResponse.set).toHaveBeenCalledTimes(2);
     expect(mockPipe).toHaveBeenCalled();
+  });
+
+  test("proxyItemFromContributor: bad body", async () => {
+    const responseHelper = new ResponseHelper();
+
+    const okBody = jest.fn((): boolean => {
+      return false;
+    });
+
+    const okHeaders = jest.fn((): boolean => true);
+
+    responseHelper.getRemoteImagePromise = jest.fn(() =>
+      Promise.resolve({
+        status: 200,
+      } as Response),
+    );
+    responseHelper.getHeadersFromTarget = jest.fn(
+      () => new Map([["content-type", "image/jpeg"]]),
+    );
+    responseHelper.translateStatusCode = jest.fn(() => 200);
+    responseHelper.okBody = okBody;
+    responseHelper.okHeaders = okHeaders;
+
+    const thumbnailApi = new ThumbnailApi(
+      dplaApi as unknown as DplaApi,
+      thumbnailStorage as unknown as ThumbnailStorage,
+      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      responseHelper,
+    );
+
+    const sendError = jest.fn();
+    thumbnailApi.sendError = sendError;
+
+    await thumbnailApi.proxyItemFromContributor(
+      itemId,
+      mockExpressResponse as unknown as express.Response,
+    );
+    expect(okBody).toHaveBeenCalledTimes(1);
+    expect(sendError).toHaveBeenCalledTimes(1);
+  });
+
+  test("proxyItemFromContributor: bad headers", async () => {
+    const responseHelper = new ResponseHelper();
+
+    responseHelper.getRemoteImagePromise = (imageUrl: string) => {
+      return Promise.resolve(
+        new Response("12345", {
+          status: 200,
+          statusText: "OK",
+          headers: [
+            ["url", imageUrl],
+            ["content-type", "image/jpeg"],
+          ],
+        }),
+      );
+    };
+
+    const okHeaders = jest.fn(() => false);
+    responseHelper.okHeaders = okHeaders;
+
+    const thumbnailApi = new ThumbnailApi(
+      dplaApi as unknown as DplaApi,
+      thumbnailStorage as unknown as ThumbnailStorage,
+      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      responseHelper,
+    );
+
+    const sendError = jest.fn();
+    thumbnailApi.sendError = sendError;
+
+    await thumbnailApi.proxyItemFromContributor(
+      itemId,
+      mockExpressResponse as unknown as express.Response,
+    );
+
+    expect(okHeaders).toHaveBeenCalled();
+    expect(sendError).toHaveBeenCalled();
   });
 
   test("proxyItemFromContributor: thumbnail lookup failure", async () => {
@@ -248,5 +360,162 @@ describe("ThumbnailApi async tests", () => {
     expect(queueToThumbnailCache).toHaveBeenCalled();
     expect(consoleSpy).toHaveBeenCalledTimes(1);
     consoleSpy.mockRestore();
+  });
+
+  test("upstream failed", async () => {
+    const responseHelper = new ResponseHelper();
+
+    const getRemoteImagePromise = jest.fn(() => {
+      return Promise.reject(new Error());
+    });
+    responseHelper.getRemoteImagePromise = getRemoteImagePromise;
+
+    const thumbnailApi = new ThumbnailApi(
+      dplaApi as unknown as DplaApi,
+      thumbnailStorage as unknown as ThumbnailStorage,
+      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      responseHelper,
+    );
+
+    const sendError = jest.fn();
+    thumbnailApi.sendError = sendError;
+
+    await thumbnailApi.proxyItemFromContributor(
+      itemId,
+      mockExpressResponse as unknown as express.Response,
+    );
+
+    expect(sendError).toHaveBeenCalledTimes(1);
+    expect(getRemoteImagePromise).toHaveBeenCalledTimes(1);
+  });
+
+  test("bad upstream status", async () => {
+    const responseHelper = new ResponseHelper();
+
+    responseHelper.getRemoteImagePromise = (imageUrl: string) => {
+      return Promise.resolve(
+        new Response("12345", {
+          status: 200,
+          statusText: "OK",
+          headers: [
+            ["url", imageUrl],
+            ["content-type", "image/jpeg"],
+          ],
+        }),
+      );
+    };
+
+    responseHelper.getHeadersFromTarget = (headers: Headers) => {
+      expect(headers).toBeDefined();
+      return new Map([["content-type", "image/jpeg"]]);
+    };
+
+    const okStatus = jest.fn(() => false);
+
+    responseHelper.okStatus = okStatus;
+
+    const thumbnailApi = new ThumbnailApi(
+      dplaApi as unknown as DplaApi,
+      thumbnailStorage as unknown as ThumbnailStorage,
+      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      responseHelper,
+    );
+
+    const sendError = jest.fn();
+    thumbnailApi.sendError = sendError;
+
+    await thumbnailApi.proxyItemFromContributor(
+      itemId,
+      mockExpressResponse as unknown as express.Response,
+    );
+
+    expect(sendError).toHaveBeenCalledTimes(1);
+    expect(okStatus).toHaveBeenCalledTimes(1);
+  });
+
+  test("handle: bad path", async () => {
+    const thumbnailApi = new ThumbnailApi(
+      dplaApi as unknown as DplaApi,
+      thumbnailStorage as unknown as ThumbnailStorage,
+      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      responseHelper,
+    );
+
+    const sendError = jest.fn();
+    thumbnailApi.sendError = sendError;
+
+    const req = new ExpressRequest();
+    req.setPath("thumb/1");
+    const res = new ExpressResponse();
+    await thumbnailApi.handle(
+      req as unknown as express.Request,
+      res as unknown as express.Response,
+    );
+
+    expect(sendError).toHaveBeenCalledTimes(1);
+  });
+
+  test("handle: serveItemFromS3", async () => {
+    const thumbnailStorage = new ThumbnailStorage(
+      mockS3Client as unknown as S3Client,
+      "bucket",
+    );
+
+    const lookupImageInS3 = jest.fn(() => Promise.resolve(true));
+
+    thumbnailStorage.lookupImageInS3 = lookupImageInS3;
+
+    const thumbnailApi = new ThumbnailApi(
+      dplaApi as unknown as DplaApi,
+      thumbnailStorage as unknown as ThumbnailStorage,
+      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      responseHelper,
+    );
+
+    const serveItemFromS3 = jest.fn();
+    thumbnailApi.serveItemFromS3 = serveItemFromS3;
+
+    const req = new ExpressRequest();
+    req.setPath("/thumb/5b02148ac3ef6f63b6ba84c1cb4122ae");
+    const res = new ExpressResponse();
+    await thumbnailApi.handle(
+      req as unknown as express.Request,
+      res as unknown as express.Response,
+    );
+
+    expect(lookupImageInS3).toHaveBeenCalledTimes(1);
+    expect(serveItemFromS3).toHaveBeenCalledTimes(1);
+  });
+
+  test("handle: proxyFromContributor", async () => {
+    const thumbnailStorage = new ThumbnailStorage(
+      mockS3Client as unknown as S3Client,
+      "bucket",
+    );
+
+    const lookupImageInS3 = jest.fn(() => Promise.resolve(false));
+
+    thumbnailStorage.lookupImageInS3 = lookupImageInS3;
+
+    const thumbnailApi = new ThumbnailApi(
+      dplaApi as unknown as DplaApi,
+      thumbnailStorage as unknown as ThumbnailStorage,
+      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      responseHelper,
+    );
+
+    const proxyItemFromContributor = jest.fn();
+    thumbnailApi.proxyItemFromContributor = proxyItemFromContributor;
+
+    const req = new ExpressRequest();
+    req.setPath("/thumb/5b02148ac3ef6f63b6ba84c1cb4122ae");
+    const res = new ExpressResponse();
+    await thumbnailApi.handle(
+      req as unknown as express.Request,
+      res as unknown as express.Response,
+    );
+
+    expect(lookupImageInS3).toHaveBeenCalledTimes(1);
+    expect(proxyItemFromContributor).toHaveBeenCalledTimes(1);
   });
 });
