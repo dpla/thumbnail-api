@@ -4,6 +4,7 @@ import {
   GetObjectCommand,
   HeadObjectCommand,
   HeadObjectCommandOutput,
+  NotFound,
   S3Client,
 } from "@aws-sdk/client-s3";
 jest.mock("@aws-sdk/s3-request-presigner");
@@ -37,10 +38,37 @@ describe("ThumbnailStorage", () => {
     expect(thumbnailStorage.getS3Key(input)).toBe(output);
   });
 
-  test("lookupImageInS3", async () => {
+  test("lookupImageInS3: success", async () => {
     const id = "12345";
     mockS3Client.on(HeadObjectCommand).resolves({} as HeadObjectCommandOutput);
     await thumbnailStorage.lookupImageInS3(id);
+    expect(mockS3Client).toHaveReceivedCommandWith(HeadObjectCommand, {
+      Bucket: fakeBucket,
+      Key: "1/2/3/4/12345.jpg",
+    });
+  });
+
+  test("lookupImageInS3: not found", async () => {
+    const id = "12345";
+    mockS3Client
+      .on(HeadObjectCommand)
+      .rejects(new NotFound({ message: "Not found.", $metadata: {} }));
+    const result = await thumbnailStorage.lookupImageInS3(id);
+    expect(result).toBe(false);
+    expect(mockS3Client).toHaveReceivedCommandWith(HeadObjectCommand, {
+      Bucket: fakeBucket,
+      Key: "1/2/3/4/12345.jpg",
+    });
+  });
+
+  test("lookupImageInS3: failure", async () => {
+    const id = "12345";
+    mockS3Client.on(HeadObjectCommand).rejects(new Error("Oopsie."));
+    expect.assertions(2);
+    await thumbnailStorage.lookupImageInS3(id).catch((error: unknown) => {
+      expect(error).toBeDefined();
+    });
+
     expect(mockS3Client).toHaveReceivedCommandWith(HeadObjectCommand, {
       Bucket: fakeBucket,
       Key: "1/2/3/4/12345.jpg",
