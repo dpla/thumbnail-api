@@ -1,4 +1,5 @@
 import { ResponseHelper } from "../../src/ResponseHelper";
+import { Response } from "express";
 
 describe("ResponseHelper", () => {
   let responseHelper = new ResponseHelper();
@@ -62,5 +63,76 @@ describe("ResponseHelper", () => {
     const nonNullExpires = expires ? expires : "";
     const expiresDate = new Date(nonNullExpires);
     expect(expiresDate.getTime()).toBeGreaterThan(new Date().getTime());
+  });
+
+  test("pipe", async () => {
+    const end = jest.fn();
+    const on = jest.fn();
+    const once = jest.fn();
+    const emit = jest.fn();
+    const write = jest.fn();
+
+    const expressResponse = {
+      end: end,
+      on: on,
+      once: once,
+      emit: emit,
+      write: write,
+    } as unknown as Response;
+
+    const source = (async function* () {
+      yield Promise.resolve("1");
+      yield Promise.resolve("2");
+      yield Promise.resolve("3");
+      yield Promise.resolve("4");
+      yield Promise.resolve("5");
+    })();
+
+    const stream = ReadableStream.from(source);
+
+    await responseHelper.pipe(stream, expressResponse);
+    expect(on).toHaveBeenCalled();
+    expect(once).toHaveBeenCalled();
+    expect(emit).toHaveBeenCalled();
+    expect(end).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("ResponseHelper getRemoteImagePromise tests", () => {
+  test("getRemoteImagePromise: success", async () => {
+    const responseHelper = new ResponseHelper();
+    const mockFetch = jest.fn(() => Promise.resolve(fakeResult));
+    global.fetch = mockFetch as unknown as typeof fetch;
+
+    const fakeResult = {
+      ok: true,
+    };
+
+    const imageUrl = "https://example.com/image.jpg";
+    const result = await responseHelper.getRemoteImagePromise(imageUrl);
+    expect(result).toBe(fakeResult);
+    mockFetch.mockRestore();
+  });
+
+  test("getRemoteImagePromise: failure", async () => {
+    const responseHelper = new ResponseHelper();
+    const mockFetch = jest.fn(() => Promise.resolve(fakeResult));
+    global.fetch = mockFetch as unknown as typeof fetch;
+
+    const fakeResult = {
+      ok: false,
+      status: 999,
+      statusText: "ohnoes",
+    };
+
+    const imageUrl = "https://example.com/image.jpg";
+    expect.assertions(1);
+    await responseHelper
+      .getRemoteImagePromise(imageUrl)
+      .catch((error: unknown) => {
+        expect(error).toBeDefined();
+      });
+
+    mockFetch.mockRestore();
   });
 });
