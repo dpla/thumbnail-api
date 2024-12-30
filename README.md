@@ -1,3 +1,6 @@
+![Build Badge](https://github.com/dpla/thumbnail-api/actions/workflows/node.js.yml/badge.svg)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=dpla_thumbnail-api&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=dpla_thumbnail-api)
+
 # What is this?
 It's a service written in Typescript/Node that takes a DPLA item ID and returns a thumbnail of the image in question, if one is available. 
 
