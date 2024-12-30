@@ -134,7 +134,12 @@ export class ThumbnailApi {
       await this.responseHelper.getRemoteImagePromise(s3url);
 
     const status = this.responseHelper.translateStatusCode(response.status);
-    this.responseHelper.okStatus(status);
+
+    if (!this.responseHelper.okStatus(status)) {
+      const error = new Error(`Status ${String(status)} from upstream.`);
+      this.sendError(expressResponse, itemId, 404, error);
+      return;
+    }
 
     expressResponse.status(status);
     expressResponse.set(
