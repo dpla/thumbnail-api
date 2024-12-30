@@ -4,21 +4,18 @@ import express, { Express } from "express";
 import { S3Client } from "@aws-sdk/client-s3";
 import { SQSClient } from "@aws-sdk/client-sqs";
 import { ThumbnailApi } from "./ThumbnailApi.js";
-import { Client, ClientOptions } from "@opensearch-project/opensearch";
 import { default as cluster, Worker } from "node:cluster";
 import { cpus } from "node:os";
+import { DplaApi } from "./DplaApi";
+import { ThumbnailStorage } from "./ThumbnailStorage";
+import { ThumbnailCacheQueue } from "./ThumbnailCacheQueue";
+import { ResponseHelper } from "./ResponseHelper";
 
 // How long we wait for a request from a socket
 const REQUEST_TIMEOUT = 3000; // 3 secs
 
 // How long we wait on piping a response before we give up
 const RESPONSE_TIMEOUT = 10000; // 10 seconds
-
-// How long we wait on a response from ElasticSearch
-const ES_RESPONSE_TIMEOUT = 2000; // 2 seconds
-
-// How many times to retry on Elasticsearch
-const ES_RETRIES = 2;
 
 start();
 
@@ -38,31 +35,31 @@ function doWorker() {
   const port = process.env.PORT ?? 3000;
   const awsOptions = { region: process.env.REGION ?? "us-east-1" };
   const bucket = process.env.BUCKET ?? "dpla-thumbnails";
-  const elasticsearch =
-    process.env.ELASTIC_URL ?? "http://search.internal.dp.la:9200/";
-
-  const sqsURL =
+  const sqsUrl =
     process.env.SQS_URL ??
     "https://sqs.us-east-1.amazonaws.com/283408157088/thumbp-image";
+
+  const dplaApiUrl = process.env.API_URL ?? "https://api.dp.la";
+  const dplaApiKey = process.env.API_TOKEN;
+
+  if (!dplaApiKey) {
+    throw new Error("DPLA API key not specified.");
+  }
 
   const app: Express = express();
   const s3Client = new S3Client(awsOptions);
   const sqsClient = new SQSClient(awsOptions);
 
-  const esClient: Client = new Client({
-    node: elasticsearch,
-    maxRetries: ES_RETRIES,
-    requestTimeout: ES_RESPONSE_TIMEOUT,
-    sniffOnStart: true,
-    sniffOnConnectionFault: true,
-  } as ClientOptions);
+  const dplaApi = new DplaApi(dplaApiUrl, dplaApiKey);
+  const thumbnailStorage = new ThumbnailStorage(s3Client, bucket);
+  const thumbnailCacheQueue = new ThumbnailCacheQueue(sqsUrl, sqsClient);
+  const responseHelper = new ResponseHelper();
 
   const thumbnailApi: ThumbnailApi = new ThumbnailApi(
-    bucket,
-    sqsURL,
-    s3Client,
-    sqsClient,
-    esClient,
+    dplaApi,
+    thumbnailStorage,
+    thumbnailCacheQueue,
+    responseHelper,
   );
 
   // next two methods are like this to make
@@ -87,7 +84,7 @@ function doWorker() {
       });
   });
 
-  app.get("/health", (req: express.Request, res: express.Response): void => {
+  app.get("/health", (_req: express.Request, res: express.Response): void => {
     res.sendStatus(200).end();
   });
 

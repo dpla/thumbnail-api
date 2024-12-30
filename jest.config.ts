@@ -8,7 +8,7 @@ import type { Config } from "jest";
 const config: Config = {
   transform: { "^.+\\.ts?$": "ts-jest" },
   testEnvironment: "node",
-  testRegex: "/src/.*\\.(test|spec)?\\.(ts|tsx)$",
+  testRegex: "/test/unit/.*\\.(test|spec)?\\.(ts|tsx)$",
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json", "node"],
   // All imported modules in your tests should be mocked automatically
   // automock: false,

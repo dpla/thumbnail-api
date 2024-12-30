@@ -21,11 +21,11 @@
   },
   "include": [
     "eslint.config.mjs",
-    "src/**/*",
+    "src/**/*.ts",
+    "test/**/*.ts"
   ],
   "exclude": [
     "node_modules",
-    "test",
     "dist/**/*",
     "**/node_modules/*"
   ]
