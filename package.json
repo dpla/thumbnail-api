@@ -4,41 +4,42 @@
   "private": true,
   "scripts": {
     "build": "tsc",
-    "start": "node dist/app.js",
-    "test": "ava -v -T 2m test/unit.ts",
-    "test:integration": "ava -v -T 2m test/integration.ts",
-    "zip": "zip -r thumbnail-api.zip dist node_modules package-lock.json package.json"
+    "clean": "rm -r dist thumbnail-api.zip 2> /dev/null ; exit 0",
+    "start": "node dist/src/app.js",
+    "lint": "npx eslint",
+    "format": "prettier --ignore-path .gitignore --write \"**/*.+(js|ts|json)\"",
+    "test": "jest test/unit",
+    "zip": "zip -r thumbnail-api.zip dist node_modules package-lock.json package.json",
+    "sentry:sourcemaps": "sentry-cli sourcemaps inject --org dpla --project thumbnail-api ./dist && sentry-cli sourcemaps upload --org dpla --project thumbnail-api ./dist"
   },
   "dependencies": {
-    "@elastic/elasticsearch": "^7.9.1",
-    "@types/async": "^3.2.3",
-    "@types/aws-sdk": "^2.7.0",
+    "@aws-sdk/client-s3": "^3.716.0",
+    "@aws-sdk/client-sqs": "^3.716.0",
+    "@aws-sdk/s3-request-presigner": "^3.716.0",
+    "@sentry/cli": "^2.39.1",
+    "@sentry/node": "^8.47.0",
+    "@sentry/profiling-node": "^8.47.0",
     "@types/express": "^4.17.8",
-    "@types/http-errors": "^1.8.0",
-    "@types/node": "^14.11.2",
-    "@types/node-fetch": "^2.5.7",
-    "@types/request": "^2.48.5",
-    "aws-sdk": "^2.765.0",
-    "aws-xray-sdk": "^3.2.0",
-    "debug": "~2.6.9",
-    "express": "~4.16.1",
-    "http-errors": "~1.6.3",
-    "node-fetch": "^2.6.1"
+    "express": "^4.21.2"
   },
   "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^4.3.0",
-    "@typescript-eslint/parser": "^4.3.0",
-    "ava": "^3.13.0",
-    "eslint": "^7.10.0",
-    "ts-node": "^9.0.0",
-    "typescript": "^3.9.7"
-  },
-  "ava": {
-    "extensions": [
-      "ts"
-    ],
-    "require": [
-      "ts-node/register"
-    ]
+    "@eslint/js": "^9.17.0",
+    "@types/eslint-config-prettier": "^6.11.3",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.10.2",
+    "@typescript-eslint/eslint-plugin": "^8.18.1",
+    "@typescript-eslint/parser": "^8.18.1",
+    "aws-sdk-client-mock": "^4.1.0",
+    "aws-sdk-client-mock-jest": "^4.1.0",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^9.1.0",
+    "jest": "^29.7.0",
+    "jest-express": "^1.12.0",
+    "jest-extended": "^4.0.2",
+    "prettier": "^3.4.2",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.1"
   }
 }
