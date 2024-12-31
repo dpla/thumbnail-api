@@ -1,4 +1,4 @@
-name: push to ecr
+name: "push to ecr: staging"
 
 on:
   workflow_dispatch:
