@@ -7,6 +7,7 @@ import { init } from "@sentry/node";
 init({
   debug: process.env.SENTRY_DEBUG === "true",
   dsn: process.env.SENTRY_DSN,
+  environment: process.env.SENTRY_ENVIRONMENT ?? "development",
   integrations: [
     // Add our Profiling integration
     nodeProfilingIntegration(),
