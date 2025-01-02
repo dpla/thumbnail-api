@@ -49,25 +49,21 @@ object TestIds {
       case Success(size) =>
         Result(id, status, contentType, size, "")
       case Failure(e) =>
-        System.err.println("Failed to size body for {}", id, e)
+        System.err.println("Failed to size body for " +  id + ", message: " + e.getMessage)
         Result(id, status, contentType, -1, e.getMessage)
     }
   }.getOrElse({
-    System.err.println("Failed to connect for {}", id)
+    System.err.println("Failed to connect for " + id)
     Result(id, -1, "Unknown", -1, "fatal")
   })
 
   def countBytes(inputStream: InputStream, bufferSize: Int): Long = {
     var result = 0L
     val buff = new Array[Byte](bufferSize)
-    breakable {
-      while (true) {
-        val bytesRead = inputStream.read(buff)
-        if (bytesRead == -1) {
-          break()
-        }
-        result += bytesRead
-      }
+    var bytesRead = 0
+    while (bytesRead != -1 ) {
+      bytesRead = inputStream.read(buff)
+      result += bytesRead
     }
     result
   }
