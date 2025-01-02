@@ -1,14 +1,15 @@
-import sbt.Keys._
+import sbt.Keys.*
 
-ThisBuild / scalaVersion := "2.12.10"
-ThisBuild / organization := "org.dpla"
+ThisBuild / scalaVersion := "2.12.12"
+ThisBuild / organization := "dp.la"
 
-lazy val hello = (project in file("."))
+val SPARK_VERSION = "3.5.3"
+
+lazy val proj = (project in file("."))
   .settings(
-    name := "Hello",
+    name := "Thumbnail API Tester",
     resolvers += "SparkPackages" at "https://dl.bintray.com/spark-packages/maven/",
-    libraryDependencies += "org.scalaj" %% "scalaj-http" % "2.4.2",
-    libraryDependencies += "org.apache.spark" %% "spark-core" % "2.4.7",
-    libraryDependencies +="org.apache.spark" %% "spark-sql" % "2.4.7",
-    libraryDependencies +="org.apache.spark" %% "spark-mllib" % "2.4.7"
+    libraryDependencies += "org.apache.spark" %% "spark-core" % SPARK_VERSION % "provided",
+    libraryDependencies +="org.apache.spark" %% "spark-sql" % SPARK_VERSION % "provided",
+    libraryDependencies +="org.apache.spark" %% "spark-mllib" % SPARK_VERSION % "provided"
   )
