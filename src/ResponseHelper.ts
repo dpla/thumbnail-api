@@ -1,5 +1,8 @@
 import { Readable } from "stream";
 import express from "express";
+import { getLogger } from "./logger";
+
+const logger = getLogger();
 
 export class ResponseHelper {
   FETCH_TIMEOUT = 10 * 1000; // 10 seconds;
@@ -8,7 +11,7 @@ export class ResponseHelper {
     try {
       Readable.fromWeb(body).pipe(expressResponse);
     } catch {
-      console.error("Failed to pipe response from upstream.");
+      logger.error("Failed to pipe response from upstream.");
     }
     return Promise.resolve();
   }
