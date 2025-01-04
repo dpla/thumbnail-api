@@ -16,7 +16,7 @@ const healthCheck = http.request(options, (res) => {
   }
 });
 
-healthCheck.on("error", function (err: undefined) {
+healthCheck.on("error", function (err: Error) {
   console.error("ERROR", err);
   process.exit(1);
 });
