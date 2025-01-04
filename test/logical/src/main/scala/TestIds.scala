@@ -5,7 +5,6 @@ import org.apache.spark.sql.SparkSession
 import java.net.URI
 import java.net.http.{HttpClient, HttpRequest, HttpResponse}
 import scala.util.{Failure, Success, Try, Using}
-import scala.util.control.Breaks._
 
 
 object TestIds {
