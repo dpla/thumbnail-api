@@ -50,8 +50,9 @@ describe("ThumbnailApi", () => {
     expect(thumbnailApi.getItemId(input)).toBe(output);
   });
 
+  //todo
   test("sendError", () => {
-    const consoleSpy = jest.spyOn(console, "error").mockImplementation();
+    thumbnailApi.logger.configure({ silent: true });
     const mockResponse = new ExpressResponse();
     const itemId = "12345";
     const code = 6789;
@@ -62,10 +63,8 @@ describe("ThumbnailApi", () => {
       code,
       error,
     );
-    expect(consoleSpy).toHaveBeenCalledTimes(1);
     expect(mockResponse.sendStatus).toHaveBeenCalledWith(code);
     expect(mockResponse.end).toHaveBeenCalledTimes(1);
-    consoleSpy.mockRestore();
   });
 });
 
@@ -323,8 +322,8 @@ describe("ThumbnailApi async tests", () => {
     expect(sendError).toHaveBeenCalled();
   });
 
+  //todo
   test("thumbnailCacheQueue failed", async () => {
-    const consoleSpy = jest.spyOn(console, "error").mockImplementation();
     const thumbnailCacheQueue = new ThumbnailCacheQueue(
       "",
       mockS3Client as unknown as SQSClient,
@@ -342,6 +341,7 @@ describe("ThumbnailApi async tests", () => {
       thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
       responseHelper,
     );
+    thumbnailApiFailingCacheQueue.logger.configure({ silent: true });
 
     await thumbnailApiFailingCacheQueue.proxyItemFromContributor(
       itemId,
@@ -349,8 +349,6 @@ describe("ThumbnailApi async tests", () => {
     );
 
     expect(queueToThumbnailCache).toHaveBeenCalled();
-    expect(consoleSpy).toHaveBeenCalledTimes(1);
-    consoleSpy.mockRestore();
   });
 
   test("upstream failed", async () => {

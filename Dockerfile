@@ -15,4 +15,4 @@ HEALTHCHECK CMD ["curl", "-f", "http://localhost:3000/health"]
 RUN npm run clean \
     && npm ci --ignore-scripts \
     && npm run build
-CMD ["npm", "run", "start"]
+CMD ["npm", "run", "start", "-s"]

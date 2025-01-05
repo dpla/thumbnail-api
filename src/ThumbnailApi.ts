@@ -4,12 +4,15 @@ import { DplaApi } from "./DplaApi";
 import { ThumbnailStorage } from "./ThumbnailStorage";
 import { ThumbnailCacheQueue } from "./ThumbnailCacheQueue";
 import { ResponseHelper } from "./ResponseHelper";
+import { getLogger } from "./logger";
+import { Logger } from "winston";
 
 const LONG_CACHE_TIME: number = 60 * 60 * 24 * 30; // 30 days in seconds
 const SHORT_CACHE_TIME = 60 * 60; // 1 hr in seconds
 const PATH_PATTERN = /^\/thumb\/([a-f0-9]{32})$/;
 
 export class ThumbnailApi {
+  logger: Logger;
   dplaApi: DplaApi;
   thumbnailStorage: ThumbnailStorage;
   thumbnailCacheQueue: ThumbnailCacheQueue;
@@ -21,6 +24,7 @@ export class ThumbnailApi {
     thumbnailCacheQueue: ThumbnailCacheQueue,
     responseHelper: ResponseHelper,
   ) {
+    this.logger = getLogger();
     this.dplaApi = dplaApi;
     this.thumbnailStorage = thumbnailStorage;
     this.thumbnailCacheQueue = thumbnailCacheQueue;
@@ -31,8 +35,7 @@ export class ThumbnailApi {
     const itemId: string | undefined = this.getItemId(req.path);
 
     if (!itemId) {
-      const error = new Error("Bad item ID.");
-      this.sendError(res, "id not found", 400, error);
+      this.sendError(res, "ID not found", 400);
       return;
     }
 
@@ -60,8 +63,7 @@ export class ThumbnailApi {
     }
 
     if (imageUrl === undefined) {
-      const error = new Error("No image URL found.");
-      this.sendError(expressResponse, itemId, 404, error);
+      this.sendError(expressResponse, itemId, 404);
       return;
     }
 
@@ -70,7 +72,7 @@ export class ThumbnailApi {
     this.thumbnailCacheQueue
       .queueToThumbnailCache(itemId, imageUrl)
       .catch((error: unknown) => {
-        console.error("SQS error for %s", itemId, error);
+        this.logger.error("SQS error for %s", itemId, error);
       });
 
     // we only want the cache to have the proxied image from the contributor
@@ -151,7 +153,7 @@ export class ThumbnailApi {
         expressResponse,
       );
     } else {
-      const error = new Error("Response had no body.");
+      const error = new Error("Upstream response had no body.");
       this.sendError(expressResponse, itemId, 502, error);
     }
   }
@@ -173,7 +175,9 @@ export class ThumbnailApi {
     code: number,
     error?: Error,
   ): void {
-    console.error("Sending %s for %s:", code, itemId, error);
+    if (error) {
+      this.logger.error("Sending %s for %s:", code, itemId, error);
+    }
     res.sendStatus(code);
     res.end();
   }
