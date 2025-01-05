@@ -5,11 +5,10 @@
   "scripts": {
     "build": "tsc",
     "clean": "rm -r dist thumbnail-api.zip 2> /dev/null ; exit 0",
-    "start": "node dist/src/app.js",
+    "start": "node dist/src/main.js",
     "lint": "npx eslint",
     "format": "prettier --ignore-path .gitignore --write \"**/*.+(js|ts|json)\"",
     "test": "jest test/unit",
-    "zip": "zip -r thumbnail-api.zip dist node_modules package-lock.json package.json",
     "sentry:sourcemaps": "sentry-cli sourcemaps inject --org dpla --project thumbnail-api ./dist && sentry-cli sourcemaps upload --org dpla --project thumbnail-api ./dist"
   },
   "dependencies": {
