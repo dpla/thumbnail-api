@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "tsc",
-    "clean": "rm -r dist thumbnail-api.zip 2> /dev/null ; exit 0",
+    "clean": "rm -r dist 2> /dev/null ; exit 0",
     "start": "node dist/src/main.js",
     "lint": "npx eslint",
     "format": "prettier --ignore-path .gitignore --write \"**/*.+(js|ts|json)\"",
