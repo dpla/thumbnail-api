@@ -8,19 +8,25 @@ export class ResponseHelper {
   FETCH_TIMEOUT = 10 * 1000; // 10 seconds;
 
   pipe(body: ReadableStream, expressResponse: express.Response): Promise<void> {
-    try {
-      const readable = Readable.fromWeb(body);
-      readable.on("error", (err: Error) => {
-        logger.error("Stream error piping response from upstream:", err);
-        if (!expressResponse.writableEnded) {
-          expressResponse.end();
-        }
-      });
-      readable.pipe(expressResponse);
-    } catch {
-      logger.error("Failed to pipe response from upstream.");
-    }
-    return Promise.resolve();
+    return new Promise((resolve) => {
+      try {
+        const readable = Readable.fromWeb(body);
+        readable.on("error", (err: Error) => {
+          logger.error("Stream error piping response from upstream:", err);
+          if (!expressResponse.writableEnded) {
+            expressResponse.end();
+          }
+          resolve();
+        });
+        readable.on("end", () => {
+          resolve();
+        });
+        readable.pipe(expressResponse);
+      } catch {
+        logger.error("Failed to pipe response from upstream.");
+        resolve();
+      }
+    });
   }
 
   //issues async request for the image (could be s3 or provider)

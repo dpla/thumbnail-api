@@ -70,7 +70,7 @@ describe("ResponseHelper", () => {
     const on = jest.fn();
     const once = jest.fn();
     const emit = jest.fn();
-    const write = jest.fn();
+    const write = jest.fn().mockReturnValue(true);
 
     const expressResponse = {
       end: end,
@@ -94,8 +94,7 @@ describe("ResponseHelper", () => {
     expect(on).toHaveBeenCalled();
     expect(once).toHaveBeenCalled();
     expect(emit).toHaveBeenCalled();
-    // It appears end gets called some other way.
-    expect(end).toHaveBeenCalledTimes(0);
+    expect(end).toHaveBeenCalledTimes(1);
   });
 });
 
