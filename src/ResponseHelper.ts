@@ -29,6 +29,8 @@ export class ResponseHelper {
     });
     if (response.ok) {
       return response;
+    } else if (response.status === 429) {
+      throw new Error(`Rate limited by upstream: ${imageUrl}`);
     } else {
       throw new Error(
         `Failed to read remote image status: ${String(response.status)} ${response.statusText}`,

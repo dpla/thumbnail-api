@@ -118,24 +118,26 @@ describe("ResponseHelper getRemoteImagePromise tests", () => {
     }
   });
 
-  test("getRemoteImagePromise: failure", async () => {
-    const fakeResult = {
-      ok: false,
-      status: 999,
-      statusText: "ohnoes",
-    };
-    const mockFetch = jest.fn(() => Promise.resolve(fakeResult));
+  test.each([
+    [999, "ohnoes", "Failed to read remote image status"],
+    [429, "Too Many Requests", "Rate limited by upstream"],
+  ])(
+    "getRemoteImagePromise: failure with status %d",
+    async (status, statusText, expectedMessage) => {
+      const fakeResult = { ok: false, status, statusText };
+      const mockFetch = jest.fn(() => Promise.resolve(fakeResult));
 
-    expect.assertions(1);
-    try {
-      const responseHelper = new ResponseHelper();
-      global.fetch = mockFetch as unknown as typeof fetch;
-      const imageUrl = "https://example.com/image.jpg";
-      await responseHelper.getRemoteImagePromise(imageUrl);
-    } catch (error: unknown) {
-      expect(error).toBeDefined();
-    } finally {
-      mockFetch.mockRestore();
-    }
-  });
+      expect.assertions(1);
+      try {
+        const responseHelper = new ResponseHelper();
+        global.fetch = mockFetch as unknown as typeof fetch;
+        const imageUrl = "https://example.com/image.jpg";
+        await responseHelper.getRemoteImagePromise(imageUrl);
+      } catch (error: unknown) {
+        expect((error as Error).message).toContain(expectedMessage);
+      } finally {
+        mockFetch.mockRestore();
+      }
+    },
+  );
 });
