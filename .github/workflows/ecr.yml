@@ -6,6 +6,9 @@ on:
 env: 
   ECR_REPOSITORY: "thumbnail-api"
 
+permissions:
+  contents: read
+
 jobs:
   ecr:
     runs-on: ubuntu-latest
