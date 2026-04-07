@@ -1,4 +1,5 @@
 import { Readable } from "stream";
+import { pipeline } from "stream/promises";
 import express from "express";
 import { getLogger } from "./logger";
 
@@ -7,26 +8,15 @@ const logger = getLogger();
 export class ResponseHelper {
   FETCH_TIMEOUT = 10 * 1000; // 10 seconds;
 
-  pipe(body: ReadableStream, expressResponse: express.Response): Promise<void> {
-    return new Promise((resolve) => {
-      try {
-        const readable = Readable.fromWeb(body);
-        readable.on("error", (err: Error) => {
-          logger.error("Stream error piping response from upstream:", err);
-          if (!expressResponse.writableEnded) {
-            expressResponse.end();
-          }
-          resolve();
-        });
-        readable.on("end", () => {
-          resolve();
-        });
-        readable.pipe(expressResponse);
-      } catch {
-        logger.error("Failed to pipe response from upstream.");
-        resolve();
+  async pipe(body: ReadableStream, expressResponse: express.Response): Promise<void> {
+    try {
+      await pipeline(Readable.fromWeb(body), expressResponse);
+    } catch (err) {
+      logger.error("Stream error piping response from upstream:", err);
+      if (!expressResponse.writableEnded) {
+        expressResponse.end();
       }
-    });
+    }
   }
 
   //issues async request for the image (could be s3 or provider)

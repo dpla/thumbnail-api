@@ -1,3 +1,4 @@
+import { PassThrough } from "stream";
 import { ResponseHelper } from "../../src/ResponseHelper";
 import { Response } from "express";
 
@@ -65,36 +66,38 @@ describe("ResponseHelper", () => {
     expect(expiresDate.getTime()).toBeGreaterThan(new Date().getTime());
   });
 
-  test("pipe", async () => {
-    const end = jest.fn();
-    const on = jest.fn();
-    const once = jest.fn();
-    const emit = jest.fn();
-    const write = jest.fn().mockReturnValue(true);
-
-    const expressResponse = {
-      end: end,
-      on: on,
-      once: once,
-      emit: emit,
-      write: write,
-    } as unknown as Response;
+  test("pipe: streams data to response and resolves after flush", async () => {
+    const dest = new PassThrough();
+    const writeSpy = jest.spyOn(dest, "write");
+    const endSpy = jest.spyOn(dest, "end");
 
     const source = (async function* () {
-      yield Promise.resolve("1");
-      yield Promise.resolve("2");
-      yield Promise.resolve("3");
-      yield Promise.resolve("4");
-      yield Promise.resolve("5");
+      yield "1";
+      yield "2";
+      yield "3";
+      yield "4";
+      yield "5";
     })();
 
     const stream = ReadableStream.from(source);
 
-    await responseHelper.pipe(stream, expressResponse);
-    expect(on).toHaveBeenCalled();
-    expect(once).toHaveBeenCalled();
-    expect(emit).toHaveBeenCalled();
-    expect(end).toHaveBeenCalledTimes(1);
+    await responseHelper.pipe(stream, dest as unknown as Response);
+    expect(writeSpy).toHaveBeenCalled();
+    expect(endSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test("pipe: calls end on response when stream errors", async () => {
+    const dest = new PassThrough();
+    const endSpy = jest.spyOn(dest, "end").mockImplementation(() => dest);
+
+    const erroring = new ReadableStream({
+      start(controller) {
+        controller.error(new Error("upstream error"));
+      },
+    });
+
+    await responseHelper.pipe(erroring, dest as unknown as Response);
+    expect(endSpy).toHaveBeenCalledTimes(1);
   });
 });
 
