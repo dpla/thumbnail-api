@@ -47,6 +47,8 @@ aws ecr describe-images \
   --output text
 ```
 
+The timestamp should match the current deployment. If you need to confirm the exact image (e.g. if another workflow may have updated `latest` concurrently), use the commit SHA tag from the workflow run output instead of `imageTag=latest`.
+
 ### Phase 2: Run the CodePipeline
 
 ```bash
