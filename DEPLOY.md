@@ -76,11 +76,11 @@ aws codepipeline get-pipeline-state \
 
 ### Blue/green deployment with automatic rollback
 
-Uses **blue/green deployment** via AWS CodeDeploy (`ECSAllAtOnce`). New "green" tasks are created, health-checked, then receive 100% of traffic atomically. Blue tasks are terminated 5 minutes later. Automatic rollback is enabled on deployment failure.
+Uses **blue/green deployment** via AWS CodeDeploy (`ECSAllAtOnce`). New "green" tasks are created, health-checked, then receive 100% of traffic atomically. Blue tasks are terminated 5 minutes later. Automatic rollback is enabled on deployment failure. *(Verified in AWS console 2026-04-07; these settings are managed in AWS, not enforced by `appspec_template.yaml`.)*
 
 ### Slow-start on ALB target groups
 
-Both `thumbnail-api-tg-blue` and `thumbnail-api-tg-green` have **90-second slow start** enabled. New tasks ramp to full traffic share over 90 seconds, preventing cold-start errors on the first requests after a deploy.
+Both `thumbnail-api-tg-blue` and `thumbnail-api-tg-green` have **90-second slow start** enabled. New tasks ramp to full traffic share over 90 seconds, preventing cold-start errors on the first requests after a deploy. *(Verified in AWS console 2026-04-07.)*
 
 ---
 
@@ -91,7 +91,7 @@ curl -sf -o /dev/null -w "HTTP %{http_code}\n" \
   "https://thumb.dp.la/thumb/f293d15b0515ac8a5478cbd9c02af79c"
 ```
 
-Expect HTTP 200 or 302 (redirect to upstream image URL).
+Expect HTTP 200. Failures return 404 (item not found or upstream 404/410), 502 (other upstream error), or 400 (malformed ID). The service follows upstream redirects internally — 302 is never returned to clients.
 
 ---
 
@@ -107,6 +107,6 @@ Expect HTTP 200 or 302 (redirect to upstream image URL).
 | CodeDeploy app / group | `thumbnail-api-deployment` / `thumbnail-api-deployment-group` |
 | ECS cluster / service | `thumbnail-api` / `thumbnail-api` |
 | Task count | 6 |
-| ALB target groups | `thumbnail-api-tg-blue`, `thumbnail-api-tg-green` (90s slow start) |
-| Deployment type | Blue/green (`ECSAllAtOnce`) — auto-rollback on failure |
+| ALB target groups | `thumbnail-api-tg-blue`, `thumbnail-api-tg-green` (90s slow start, verified 2026-04-07) |
+| Deployment type | Blue/green (`ECSAllAtOnce`) — auto-rollback on failure (verified 2026-04-07) |
 | AWS region | `us-east-1` |
