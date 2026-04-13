@@ -2,13 +2,12 @@ import { Readable } from "stream";
 import { pipeline } from "stream/promises";
 import express from "express";
 import { getLogger } from "./logger";
+import { FETCH_TIMEOUT_MS } from "./timeoutConfig";
 
 const logger = getLogger();
 
 export class ResponseHelper {
-  // Must be well under RESPONSE_TIMEOUT (10s) in ExpressSetup so that AbortSignal fires
-  // and sendError(404) completes before res.setTimeout sends a 504, preventing ERR_HTTP_HEADERS_SENT.
-  FETCH_TIMEOUT = 5 * 1000; // 5 seconds
+  FETCH_TIMEOUT = FETCH_TIMEOUT_MS;
 
   async pipe(body: ReadableStream, expressResponse: express.Response): Promise<void> {
     try {
