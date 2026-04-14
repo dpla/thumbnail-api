@@ -2,11 +2,12 @@ import { Readable } from "stream";
 import { pipeline } from "stream/promises";
 import express from "express";
 import { getLogger } from "./logger";
+import { FETCH_TIMEOUT_MS } from "./timeoutConfig";
 
 const logger = getLogger();
 
 export class ResponseHelper {
-  FETCH_TIMEOUT = 10 * 1000; // 10 seconds;
+  FETCH_TIMEOUT = FETCH_TIMEOUT_MS;
 
   async pipe(body: ReadableStream, expressResponse: express.Response): Promise<void> {
     try {
@@ -99,7 +100,7 @@ export class ResponseHelper {
   // whereas s3 responses should live there for a long time
   // see LONG_CACHE_TIME and SHORT_CACHE_TIME, above
   getCacheHeaders(seconds: number): Map<string, string> {
-    const now = new Date().getTime();
+    const now = Date.now();
     const expirationDateString = new Date(now + 1000 * seconds).toUTCString();
     const cacheControl = `public, max-age=${String(seconds)}`;
     return new Map([

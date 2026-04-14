@@ -5,12 +5,7 @@ import express, { Express } from "express";
 import * as Http from "node:http";
 import { ThumbnailApi } from "./ThumbnailApi";
 import { Server } from "node:http";
-
-// How long we wait for a request from a socket
-const REQUEST_TIMEOUT = 3000; // 3 secs
-
-// How long we wait on piping a response before we give up
-const RESPONSE_TIMEOUT = 10000; // 10 seconds
+import { REQUEST_TIMEOUT_MS, RESPONSE_TIMEOUT_MS } from "./timeoutConfig";
 
 export class ExpressSetup {
   app: Express;
@@ -77,7 +72,7 @@ export class ExpressSetup {
   }
 
   setRequestTimeout(server: Http.Server) {
-    server.requestTimeout = REQUEST_TIMEOUT;
+    server.requestTimeout = REQUEST_TIMEOUT_MS;
   }
 
   server(port: number): Http.Server {
@@ -90,9 +85,15 @@ export class ExpressSetup {
     // next two methods are like this to make
     // eslint happy about the async get handler
     const handler = async (req: express.Request, res: express.Response) => {
-      res.setTimeout(RESPONSE_TIMEOUT, () => {
-        res.status(504);
-        res.send("Gateway Timeout");
+      res.setTimeout(RESPONSE_TIMEOUT_MS, () => {
+        if (res.writableEnded) {
+          return;
+        }
+        if (res.headersSent) {
+          res.destroy();
+          return;
+        }
+        res.status(504).send("Gateway Timeout");
       });
       try {
         await thumbnailApi.handle(req, res);
