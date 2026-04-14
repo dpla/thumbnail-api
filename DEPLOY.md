@@ -14,7 +14,7 @@ When deploying both the thumbnail API and the DPLA API in the same maintenance w
 ~/bin/deploy-api-services api      # api only
 ```
 
-The script lives at `~/bin/deploy-api-services` on the operator's local machine. If it's missing, ask in #tech or check with the person who last deployed.
+The script lives at `bin/deploy-api-services` in the `dpla/api` repository. Copy it to `~/bin/` on the deploy machine: `cp bin/deploy-api-services ~/bin/ && chmod +x ~/bin/deploy-api-services`. If it is missing from the deploy machine, check the repo.
 
 ---
 
