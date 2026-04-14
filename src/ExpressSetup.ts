@@ -86,8 +86,10 @@ export class ExpressSetup {
     // eslint happy about the async get handler
     const handler = async (req: express.Request, res: express.Response) => {
       res.setTimeout(RESPONSE_TIMEOUT_MS, () => {
-        res.status(504);
-        res.send("Gateway Timeout");
+        if (res.headersSent || res.writableEnded) {
+          return;
+        }
+        res.status(504).send("Gateway Timeout");
       });
       try {
         await thumbnailApi.handle(req, res);
