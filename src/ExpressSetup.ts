@@ -86,7 +86,11 @@ export class ExpressSetup {
     // eslint happy about the async get handler
     const handler = async (req: express.Request, res: express.Response) => {
       res.setTimeout(RESPONSE_TIMEOUT_MS, () => {
-        if (res.headersSent || res.writableEnded) {
+        if (res.writableEnded) {
+          return;
+        }
+        if (res.headersSent) {
+          res.destroy();
           return;
         }
         res.status(504).send("Gateway Timeout");
