@@ -98,7 +98,7 @@ export class ThumbnailApi {
 
     if (!this.responseHelper.okStatus(status)) {
       const error = new Error(`Status ${String(status)} from upstream.`);
-      remoteImageResponse.body?.cancel?.().catch(() => {});
+      this.releaseUpstreamBody(remoteImageResponse);
       this.sendError(expressResponse, itemId, 404, error);
       return;
     }
@@ -107,7 +107,7 @@ export class ThumbnailApi {
 
     if (!this.responseHelper.okHeaders(remoteImageResponse.headers)) {
       const error = new Error(`Got bad headers from upstream.`);
-      remoteImageResponse.body?.cancel?.().catch(() => {});
+      this.releaseUpstreamBody(remoteImageResponse);
       this.sendError(expressResponse, itemId, 404, error);
       return;
     }
@@ -169,6 +169,10 @@ export class ThumbnailApi {
     } else {
       return undefined;
     }
+  }
+
+  private releaseUpstreamBody(response: Response): void {
+    void response.body?.cancel?.().catch(() => {});
   }
 
   sendError(
