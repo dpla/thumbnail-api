@@ -141,6 +141,7 @@ export class ThumbnailApi {
 
     if (!this.responseHelper.okStatus(status)) {
       const error = new Error(`Status ${String(status)} from upstream.`);
+      this.releaseUpstreamBody(response);
       this.sendError(expressResponse, itemId, 404, error);
       return;
     }
