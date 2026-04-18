@@ -8,7 +8,7 @@ import { getLogger } from "./logger";
 import { Logger } from "winston";
 
 const LONG_CACHE_TIME: number = 60 * 60 * 24 * 30; // 30 days in seconds
-const SHORT_CACHE_TIME = 60 * 60; // 1 hr in seconds
+const SHORT_CACHE_TIME: number = 60 * 60; // 1 hr in seconds
 const PATH_PATTERN = /^\/thumb\/([a-f0-9]{32})$/;
 
 export class ThumbnailApi {
