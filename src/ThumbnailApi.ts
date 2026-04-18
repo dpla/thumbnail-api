@@ -103,8 +103,6 @@ export class ThumbnailApi {
       return;
     }
 
-    expressResponse.status(status);
-
     if (!this.responseHelper.okHeaders(remoteImageResponse.headers)) {
       const error = new Error(`Got bad headers from upstream.`);
       this.releaseUpstreamBody(remoteImageResponse);
@@ -121,6 +119,8 @@ export class ThumbnailApi {
       this.sendError(expressResponse, itemId, 502, error);
       return;
     }
+
+    expressResponse.status(status);
 
     await this.responseHelper.pipe(
       remoteImageResponse.body as ReadableStream,
