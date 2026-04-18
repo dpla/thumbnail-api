@@ -52,7 +52,7 @@ export class ThumbnailApi {
     itemId: string,
     expressResponse: express.Response,
   ): Promise<void> {
-    let imageUrl = undefined;
+    let imageUrl: string | undefined;
 
     try {
       imageUrl = await this.dplaApi.getThumbnailUrl(itemId);
