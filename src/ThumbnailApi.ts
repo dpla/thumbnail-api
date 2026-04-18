@@ -110,12 +110,21 @@ export class ThumbnailApi {
       return;
     }
 
-    expressResponse.set(
-      this.responseHelper.getHeadersFromTarget(remoteImageResponse.headers),
-    );
+    try {
+      expressResponse.set(
+        this.responseHelper.getHeadersFromTarget(remoteImageResponse.headers),
+      );
+    } catch (err) {
+      this.releaseUpstreamBody(remoteImageResponse);
+      const error =
+        err instanceof Error ? err : new Error("Failed to set upstream headers.");
+      this.sendError(expressResponse, itemId, 502, error);
+      return;
+    }
 
     if (!this.responseHelper.okBody(remoteImageResponse.body)) {
       const error = new Error("Received no body from upstream.");
+      this.releaseUpstreamBody(remoteImageResponse);
       this.sendError(expressResponse, itemId, 502, error);
       return;
     }
@@ -166,6 +175,7 @@ export class ThumbnailApi {
       );
     } else {
       const error = new Error("Upstream response had no body.");
+      this.releaseUpstreamBody(response);
       this.sendError(expressResponse, itemId, 502, error);
     }
   }
