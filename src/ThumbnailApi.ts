@@ -79,7 +79,7 @@ export class ThumbnailApi {
     // for a short amount because it won't have been sized down
     expressResponse.set(this.responseHelper.getCacheHeaders(SHORT_CACHE_TIME));
 
-    let remoteImageResponse: Response | undefined = undefined;
+    let remoteImageResponse: Response | undefined;
 
     try {
       remoteImageResponse =
