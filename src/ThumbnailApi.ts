@@ -147,9 +147,18 @@ export class ThumbnailApi {
     }
 
     expressResponse.status(status);
-    expressResponse.set(
-      this.responseHelper.getHeadersFromTarget(response.headers),
-    );
+    try {
+      expressResponse.set(
+        this.responseHelper.getHeadersFromTarget(response.headers),
+      );
+    } catch (err) {
+      this.releaseUpstreamBody(response);
+      const error = err instanceof Error
+        ? err
+        : new Error("Failed to set upstream headers.");
+      this.sendError(expressResponse, itemId, 502, error);
+      return;
+    }
     if (this.responseHelper.okBody(response.body)) {
       await this.responseHelper.pipe(
         response.body as ReadableStream,
