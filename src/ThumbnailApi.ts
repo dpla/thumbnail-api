@@ -201,6 +201,10 @@ export class ThumbnailApi {
     code: number,
     error?: Error,
   ): void {
+    if (res.headersSent) {
+      this.logger.error("Unable to send %s for %s: headers already sent", code, itemId, error);
+      return;
+    }
     if (error) {
       this.logger.error("Sending %s for %s:", code, itemId, error);
     }
