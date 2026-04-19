@@ -155,7 +155,6 @@ export class ThumbnailApi {
       return;
     }
 
-    expressResponse.status(status);
     try {
       expressResponse.set(
         this.responseHelper.getHeadersFromTarget(response.headers),
@@ -168,6 +167,7 @@ export class ThumbnailApi {
       this.sendError(expressResponse, itemId, 502, error);
       return;
     }
+    expressResponse.status(status);
     if (this.responseHelper.okBody(response.body)) {
       await this.responseHelper.pipe(
         response.body as ReadableStream,
