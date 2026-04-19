@@ -8,7 +8,7 @@ import { getLogger } from "./logger";
 import { Logger } from "winston";
 
 const LONG_CACHE_TIME: number = 60 * 60 * 24 * 30; // 30 days in seconds
-const SHORT_CACHE_TIME = 60 * 60; // 1 hr in seconds
+const SHORT_CACHE_TIME: number = 60 * 60; // 1 hr in seconds
 const PATH_PATTERN = /^\/thumb\/([a-f0-9]{32})$/;
 
 export class ThumbnailApi {
@@ -52,7 +52,7 @@ export class ThumbnailApi {
     itemId: string,
     expressResponse: express.Response,
   ): Promise<void> {
-    let imageUrl = undefined;
+    let imageUrl: string | undefined;
 
     try {
       imageUrl = await this.dplaApi.getThumbnailUrl(itemId);
@@ -79,7 +79,7 @@ export class ThumbnailApi {
     // for a short amount because it won't have been sized down
     expressResponse.set(this.responseHelper.getCacheHeaders(SHORT_CACHE_TIME));
 
-    let remoteImageResponse: Response | undefined = undefined;
+    let remoteImageResponse: Response | undefined;
 
     try {
       remoteImageResponse =
@@ -103,8 +103,6 @@ export class ThumbnailApi {
       return;
     }
 
-    expressResponse.status(status);
-
     if (!this.responseHelper.okHeaders(remoteImageResponse.headers)) {
       const error = new Error(`Got bad headers from upstream.`);
       this.releaseUpstreamBody(remoteImageResponse);
@@ -112,15 +110,26 @@ export class ThumbnailApi {
       return;
     }
 
-    expressResponse.set(
-      this.responseHelper.getHeadersFromTarget(remoteImageResponse.headers),
-    );
-
-    if (!this.responseHelper.okBody(remoteImageResponse.body)) {
-      const error = new Error("Received no body from upstream.");
+    try {
+      expressResponse.set(
+        this.responseHelper.getHeadersFromTarget(remoteImageResponse.headers),
+      );
+    } catch (err) {
+      this.releaseUpstreamBody(remoteImageResponse);
+      const error =
+        err instanceof Error ? err : new Error("Failed to set upstream headers.");
       this.sendError(expressResponse, itemId, 502, error);
       return;
     }
+
+    if (!this.responseHelper.okBody(remoteImageResponse.body)) {
+      const error = new Error("Received no body from upstream.");
+      this.releaseUpstreamBody(remoteImageResponse);
+      this.sendError(expressResponse, itemId, 502, error);
+      return;
+    }
+
+    expressResponse.status(status);
 
     await this.responseHelper.pipe(
       remoteImageResponse.body as ReadableStream,
@@ -146,10 +155,19 @@ export class ThumbnailApi {
       return;
     }
 
+    try {
+      expressResponse.set(
+        this.responseHelper.getHeadersFromTarget(response.headers),
+      );
+    } catch (err) {
+      this.releaseUpstreamBody(response);
+      const error = err instanceof Error
+        ? err
+        : new Error("Failed to set upstream headers.");
+      this.sendError(expressResponse, itemId, 502, error);
+      return;
+    }
     expressResponse.status(status);
-    expressResponse.set(
-      this.responseHelper.getHeadersFromTarget(response.headers),
-    );
     if (this.responseHelper.okBody(response.body)) {
       await this.responseHelper.pipe(
         response.body as ReadableStream,
@@ -157,6 +175,7 @@ export class ThumbnailApi {
       );
     } else {
       const error = new Error("Upstream response had no body.");
+      this.releaseUpstreamBody(response);
       this.sendError(expressResponse, itemId, 502, error);
     }
   }
@@ -182,6 +201,10 @@ export class ThumbnailApi {
     code: number,
     error?: Error,
   ): void {
+    if (res.headersSent) {
+      this.logger.error("Unable to send %s for %s: headers already sent", code, itemId, error);
+      return;
+    }
     if (error) {
       this.logger.error("Sending %s for %s:", code, itemId, error);
     }
