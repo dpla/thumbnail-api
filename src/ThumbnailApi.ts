@@ -156,9 +156,13 @@ export class ThumbnailApi {
     }
 
     try {
-      expressResponse.set(
-        this.responseHelper.getHeadersFromTarget(response.headers),
-      );
+      const headers = this.responseHelper.getHeadersFromTarget(response.headers);
+      // All thumbnails in S3 are stored as .jpg,
+      // but may not be stored with the correct content type,
+      // causing S3 to return application/octet-stream as the default value.
+      // This overrides the Content-Type to ensure clients always receive type image/jpeg.
+      headers["Content-Type"] = "image/jpeg";
+      expressResponse.set(headers);
     } catch (err) {
       this.releaseUpstreamBody(response);
       const error = err instanceof Error
