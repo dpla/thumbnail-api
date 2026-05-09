@@ -119,7 +119,7 @@ describe("ThumbnailApi async tests", () => {
 
   responseHelper.getHeadersFromTarget = (headers: Headers) => {
     expect(headers).toBeDefined();
-    return new Map([["content-type", "image/jpeg"]]);
+    return { "content-type": "image/jpeg" };
   };
 
   const mockPipe = jest.fn();
@@ -160,7 +160,7 @@ describe("ThumbnailApi async tests", () => {
         status: 200,
       } as Response),
     );
-    responseHelper.getHeadersFromTarget = jest.fn(() => new Map());
+    responseHelper.getHeadersFromTarget = jest.fn(() => ({}));
     responseHelper.translateStatusCode = jest.fn(() => 200);
     responseHelper.okBody = okBody;
 
@@ -206,7 +206,7 @@ describe("ThumbnailApi async tests", () => {
       } as Response),
     );
     responseHelper.getHeadersFromTarget = jest.fn(
-      () => new Map([["content-type", "image/jpeg"]]),
+      () => ({ "content-type": "image/jpeg" }),
     );
     responseHelper.translateStatusCode = jest.fn(() => 200);
     responseHelper.okBody = okBody;
@@ -396,7 +396,7 @@ describe("ThumbnailApi async tests", () => {
 
     responseHelper.getHeadersFromTarget = (headers: Headers) => {
       expect(headers).toBeDefined();
-      return new Map([["content-type", "image/jpeg"]]);
+      return { "content-type": "image/jpeg" };
     };
 
     const okStatus = jest.fn(() => false);

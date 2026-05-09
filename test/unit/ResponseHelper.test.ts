@@ -16,9 +16,9 @@ describe("ResponseHelper", () => {
       ["foo", "bar"],
     ]);
     const result = responseHelper.getHeadersFromTarget(headers);
-    expect(result.get("Content-Type")).toBe("image/jpeg");
-    expect(result.get("Last-Modified")).toBe("2");
-    expect(result.get("foo")).toBeUndefined();
+    expect(result["Content-Type"]).toBe("image/jpeg");
+    expect(result["Last-Modified"]).toBe("2");
+    expect(result["foo"]).toBeUndefined();
   });
 
   test.each([
