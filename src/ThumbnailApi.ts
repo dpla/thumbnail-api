@@ -192,7 +192,7 @@ export class ThumbnailApi {
   }
 
   private releaseUpstreamBody(response: Response): void {
-    void response.body?.cancel?.().catch(() => {});
+    void response.body?.cancel().catch((_err: unknown) => void _err);
   }
 
   sendError(
