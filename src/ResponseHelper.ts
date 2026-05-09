@@ -40,23 +40,19 @@ export class ResponseHelper {
   }
 
   //providers/s3 could set all sorts of weird headers, but we only want to pass along a few
-  getHeadersFromTarget(headers: Headers): Map<string, string> {
-    const result = new Map<string, string>();
+  getHeadersFromTarget(headers: Headers): Record<string, string> {
+    const result: Record<string, string> = {};
 
-    const addHeader = (
-      result: Map<string, string>,
-      headers: Headers,
-      header: string,
-    ) => {
+    const addHeader = (header: string) => {
       const value = headers.get(header);
-      if (value) {
-        result.set(header, value);
+
+      if (value !== null) {
+        result[header] = value;
       }
     };
 
-    // Reduce headers to just those that we want to pass through
-    addHeader(result, headers, "Content-Type");
-    addHeader(result, headers, "Last-Modified");
+    addHeader("Content-Type");
+    addHeader("Last-Modified");
 
     return result;
   }
