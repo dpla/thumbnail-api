@@ -76,7 +76,7 @@ export class ThumbnailApi {
       });
 
     // we only want the cache to have the proxied image from the contributor
-    // for a short amount because it won't have been sized down
+    // for a short amount of time because it won't have been sized down
     expressResponse.set(this.responseHelper.getCacheHeaders(SHORT_CACHE_TIME));
 
     let remoteImageResponse: Response | undefined;
@@ -192,7 +192,7 @@ export class ThumbnailApi {
   }
 
   private releaseUpstreamBody(response: Response): void {
-    void response.body?.cancel?.()?.catch(() => {});
+    void response.body?.cancel().catch((_err: unknown) => void _err);
   }
 
   sendError(
