@@ -109,4 +109,59 @@ describe("ExpressSetup", () => {
     expect(express.get).toHaveBeenCalledWith("/thumb/*", expect.anything());
     expect(express.get).toHaveBeenCalledWith("/health", expect.anything());
   });
+
+  test("thumb route answers 502 when the handler throws", async () => {
+    const fakeThumbnailApi = {
+      handle: jest.fn(() => Promise.reject(new Error("boom"))),
+    } as unknown as ThumbnailApi;
+    expressSetup.routes(fakeThumbnailApi);
+
+    const thumbRoute = (express.get as jest.Mock).mock.calls.find(
+      (call) => call[0] === "/thumb/*",
+    );
+    expect(thumbRoute).toBeDefined();
+    const routeHandler = thumbRoute?.[1] as (
+      req: unknown,
+      res: unknown,
+    ) => void;
+
+    const res = {
+      headersSent: false,
+      setTimeout: jest.fn(),
+      sendStatus: jest.fn(),
+      end: jest.fn(),
+    };
+    routeHandler({}, res);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(res.sendStatus).toHaveBeenCalledWith(502);
+    expect(res.end).toHaveBeenCalledTimes(1);
+  });
+
+  test("thumb route leaves a started response alone when the handler throws", async () => {
+    const fakeThumbnailApi = {
+      handle: jest.fn(() => Promise.reject(new Error("boom"))),
+    } as unknown as ThumbnailApi;
+    expressSetup.routes(fakeThumbnailApi);
+
+    const thumbRoute = (express.get as jest.Mock).mock.calls.find(
+      (call) => call[0] === "/thumb/*",
+    );
+    const routeHandler = thumbRoute?.[1] as (
+      req: unknown,
+      res: unknown,
+    ) => void;
+
+    const res = {
+      headersSent: true,
+      setTimeout: jest.fn(),
+      sendStatus: jest.fn(),
+      end: jest.fn(),
+    };
+    routeHandler({}, res);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(res.sendStatus).not.toHaveBeenCalled();
+    expect(res.end).not.toHaveBeenCalled();
+  });
 });

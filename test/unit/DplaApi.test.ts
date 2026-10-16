@@ -15,6 +15,8 @@ describe("DplaApi", () => {
     expect(result.headers).toStrictEqual({
       Authorization: fakeToken,
     });
+    expect(result.signal).toBeInstanceOf(AbortSignal);
+    expect(result.signal?.aborted).toBe(false);
   });
 
   test.each([

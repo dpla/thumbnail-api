@@ -1,3 +1,5 @@
+import { API_TIMEOUT_MS } from "./timeoutConfig";
+
 export class DplaApi {
   apiUrl: string;
   apiToken: string;
@@ -25,6 +27,7 @@ export class DplaApi {
       headers: {
         Authorization: this.apiToken,
       },
+      signal: AbortSignal.timeout(API_TIMEOUT_MS),
     } as RequestInit;
   }
 

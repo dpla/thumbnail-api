@@ -99,6 +99,11 @@ export class ExpressSetup {
         await thumbnailApi.handle(req, res);
       } catch (error) {
         this.logger.error("Unexpected Error fetching thumb:", error);
+        // Immediately respond on failure
+        if (!res.headersSent) {
+          res.sendStatus(502);
+          res.end();
+        }
       }
     };
 

@@ -182,6 +182,73 @@ describe("ThumbnailApi async tests", () => {
     expect(sendError).toHaveBeenCalledTimes(1);
   });
 
+  test("serveItemFromS3: fetch failure sends 502", async () => {
+    const responseHelper = new ResponseHelper();
+    responseHelper.getRemoteImagePromise = jest.fn(() =>
+      Promise.reject(new Error("The operation was aborted due to timeout")),
+    );
+    const pipe = jest.fn();
+    responseHelper.pipe = pipe;
+
+    const thumbnailApi = new ThumbnailApi(
+      dplaApi as unknown as DplaApi,
+      thumbnailStorage as unknown as ThumbnailStorage,
+      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      responseHelper,
+    );
+
+    const sendError = jest.fn();
+    thumbnailApi.sendError = sendError;
+
+    await thumbnailApi.serveItemFromS3(
+      itemId,
+      mockExpressResponse as unknown as express.Response,
+    );
+    expect(sendError).toHaveBeenCalledTimes(1);
+    expect(sendError).toHaveBeenCalledWith(
+      mockExpressResponse,
+      itemId,
+      502,
+      expect.any(Error),
+    );
+    expect(pipe).not.toHaveBeenCalled();
+  });
+
+  test("serveItemFromS3: signed url failure sends 502", async () => {
+    const thumbnailStorage = new ThumbnailStorage(
+      mockS3Client as unknown as S3Client,
+      "bucket",
+    );
+    thumbnailStorage.getSignedS3Url = jest.fn(() =>
+      Promise.reject(new Error("no credentials")),
+    );
+    const getRemoteImagePromise = jest.fn();
+    const responseHelper = new ResponseHelper();
+    responseHelper.getRemoteImagePromise = getRemoteImagePromise;
+
+    const thumbnailApi = new ThumbnailApi(
+      dplaApi as unknown as DplaApi,
+      thumbnailStorage as unknown as ThumbnailStorage,
+      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      responseHelper,
+    );
+
+    const sendError = jest.fn();
+    thumbnailApi.sendError = sendError;
+
+    await thumbnailApi.serveItemFromS3(
+      itemId,
+      mockExpressResponse as unknown as express.Response,
+    );
+    expect(sendError).toHaveBeenCalledWith(
+      mockExpressResponse,
+      itemId,
+      502,
+      expect.any(Error),
+    );
+    expect(getRemoteImagePromise).not.toHaveBeenCalled();
+  });
+
   test("proxyItemFromContributor: success", async () => {
     await thumbnailApi.proxyItemFromContributor(
       itemId,
@@ -474,6 +541,48 @@ describe("ThumbnailApi async tests", () => {
 
     expect(lookupImageInS3).toHaveBeenCalledTimes(1);
     expect(serveItemFromS3).toHaveBeenCalledTimes(1);
+  });
+
+  test("handle: S3 lookup failure sends 502", async () => {
+    const thumbnailStorage = new ThumbnailStorage(
+      mockS3Client as unknown as S3Client,
+      "bucket",
+    );
+
+    thumbnailStorage.lookupImageInS3 = jest.fn(() =>
+      Promise.reject(new Error("S3 communications failure.")),
+    );
+
+    const thumbnailApi = new ThumbnailApi(
+      dplaApi as unknown as DplaApi,
+      thumbnailStorage as unknown as ThumbnailStorage,
+      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      responseHelper,
+    );
+
+    const serveItemFromS3 = jest.fn();
+    thumbnailApi.serveItemFromS3 = serveItemFromS3;
+    const proxyItemFromContributor = jest.fn();
+    thumbnailApi.proxyItemFromContributor = proxyItemFromContributor;
+    const sendError = jest.fn();
+    thumbnailApi.sendError = sendError;
+
+    const req = new ExpressRequest();
+    req.setPath("/thumb/5b02148ac3ef6f63b6ba84c1cb4122ae");
+    const res = new ExpressResponse();
+    await thumbnailApi.handle(
+      req as unknown as express.Request,
+      res as unknown as express.Response,
+    );
+
+    expect(sendError).toHaveBeenCalledWith(
+      res,
+      "5b02148ac3ef6f63b6ba84c1cb4122ae",
+      502,
+      expect.any(Error),
+    );
+    expect(serveItemFromS3).not.toHaveBeenCalled();
+    expect(proxyItemFromContributor).not.toHaveBeenCalled();
   });
 
   test("handle: proxyFromContributor", async () => {

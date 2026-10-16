@@ -10,8 +10,11 @@ export const RESPONSE_TIMEOUT_MS = 10_000;
 // preventing ERR_HTTP_HEADERS_SENT.
 export const FETCH_TIMEOUT_MS = 5_000;
 
-if (FETCH_TIMEOUT_MS >= RESPONSE_TIMEOUT_MS) {
+// API_TIMEOUT_MS: how long to wait for DPLA API item lookup.
+export const API_TIMEOUT_MS = 3_000;
+
+if (API_TIMEOUT_MS + FETCH_TIMEOUT_MS >= RESPONSE_TIMEOUT_MS) {
   throw new Error(
-    `Invalid timeout config: FETCH_TIMEOUT_MS (${FETCH_TIMEOUT_MS}) must be less than RESPONSE_TIMEOUT_MS (${RESPONSE_TIMEOUT_MS})`,
+    `Invalid timeout config: API_TIMEOUT_MS (${String(API_TIMEOUT_MS)}) + FETCH_TIMEOUT_MS (${String(FETCH_TIMEOUT_MS)}) must be less than RESPONSE_TIMEOUT_MS (${String(RESPONSE_TIMEOUT_MS)})`,
   );
 }
