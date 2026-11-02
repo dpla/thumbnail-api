@@ -1,5 +1,5 @@
 # Our first stage, that is the Builder
-FROM node:22-slim AS thumbnail-api-builder
+FROM node:24-slim AS thumbnail-api-builder
 WORKDIR /opt/thumbnail-api
 COPY src /opt/thumbnail-api/src
 COPY package.json /opt/thumbnail-api
@@ -7,7 +7,7 @@ COPY package-lock.json /opt/thumbnail-api
 COPY tsconfig.json /opt/thumbnail-api
 RUN npm install --ignore-scripts && npm run clean && npm run build
 
-FROM node:22-slim AS thumbnail-api-prod
+FROM node:24-slim AS thumbnail-api-prod
 RUN apt update \
   && apt --no-install-recommends install -y curl \
   && apt clean
