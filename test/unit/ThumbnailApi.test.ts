@@ -174,6 +174,38 @@ describe("ThumbnailApi async tests", () => {
     expect(mockPipe).toHaveBeenCalled();
   });
 
+  test("serveItemFromS3: overrides octet-stream Content-Type with image/jpeg", async () => {
+    const responseHelper = new ResponseHelper();
+    responseHelper.getRemoteImagePromise = jest.fn(() =>
+      Promise.resolve(
+        new Response("12345", {
+          status: 200,
+          statusText: "OK",
+          headers: [
+            ["content-type", "application/octet-stream"],
+            ["last-modified", "Wed, 20 Nov 2024 14:03:09 GMT"],
+          ],
+        }),
+      ),
+    );
+    responseHelper.pipe = jest.fn();
+
+    const thumbnailApi = new ThumbnailApi(
+      dplaApi,
+      thumbnailStorage,
+      thumbnailCacheQueue,
+      responseHelper,
+    );
+
+    await thumbnailApi.serveItemFromS3(itemId, mockExpressResponse);
+    expect(mockExpressResponse.headers["content-type"]).toBe("image/jpeg");
+    expect(mockExpressResponse.headers["last-modified"]).toBe(
+      "Wed, 20 Nov 2024 14:03:09 GMT",
+    );
+    expect(mockExpressResponse.status).toHaveBeenCalledWith(200);
+    expect(responseHelper.pipe).toHaveBeenCalled();
+  });
+
   test("serveItemFromS3: bad body", async () => {
     const responseHelper = new ResponseHelper();
 
