@@ -16,9 +16,9 @@ describe("ResponseHelper", () => {
       ["foo", "bar"],
     ]);
     const result = responseHelper.getHeadersFromTarget(headers);
-    expect(result.get("Content-Type")).toBe("image/jpeg");
-    expect(result.get("Last-Modified")).toBe("2");
-    expect(result.get("foo")).toBeUndefined();
+    expect(result["Content-Type"]).toBe("image/jpeg");
+    expect(result["Last-Modified"]).toBe("2");
+    expect(result.foo).toBeUndefined();
   });
 
   test.each([
@@ -57,8 +57,8 @@ describe("ResponseHelper", () => {
 
   test("getCacheHeaders", () => {
     const result = responseHelper.getCacheHeaders(123);
-    expect(result.get("Cache-Control")).toBe("public, max-age=123");
-    const expires = result.get("Expires");
+    expect(result["Cache-Control"]).toBe("public, max-age=123");
+    const expires = result.Expires;
     expect(expires).toBeDefined();
     expect(expires).not.toBeNull();
     const nonNullExpires = expires ? expires : "";

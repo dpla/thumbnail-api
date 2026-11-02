@@ -6,7 +6,7 @@ expect.extend(matchers);
 import { DplaApi } from "../../src/DplaApi";
 import { ThumbnailStorage } from "../../src/ThumbnailStorage";
 import { ThumbnailCacheQueue } from "../../src/ThumbnailCacheQueue";
-import { ResponseHelper } from "../../src/ResponseHelper";
+import { NO_STORE_HEADERS, ResponseHelper } from "../../src/ResponseHelper";
 import { S3Client } from "@aws-sdk/client-s3";
 
 import * as express from "express";
@@ -66,6 +66,45 @@ describe("ThumbnailApi", () => {
     expect(mockResponse.sendStatus).toHaveBeenCalledWith(code);
     expect(mockResponse.end).toHaveBeenCalledTimes(1);
   });
+
+  test("sendError: 5xx overrides cache headers with no-store", () => {
+    thumbnailApi.logger.configure({ silent: true });
+    const mockResponse = new ExpressResponse();
+    thumbnailApi.sendError(
+      mockResponse as unknown as express.Response,
+      "12345",
+      502,
+      new Error("s3 down"),
+    );
+    expect(mockResponse.set).toHaveBeenCalledWith(NO_STORE_HEADERS);
+    expect(mockResponse.sendStatus).toHaveBeenCalledWith(502);
+  });
+
+  test("sendError: 404 leaves cache headers alone", () => {
+    thumbnailApi.logger.configure({ silent: true });
+    const mockResponse = new ExpressResponse();
+    thumbnailApi.sendError(
+      mockResponse as unknown as express.Response,
+      "12345",
+      404,
+    );
+    expect(mockResponse.set).not.toHaveBeenCalled();
+    expect(mockResponse.sendStatus).toHaveBeenCalledWith(404);
+  });
+
+  test("sendError: headers already sent sends nothing", () => {
+    thumbnailApi.logger.configure({ silent: true });
+    const mockResponse = new ExpressResponse();
+    mockResponse.setHeadersSent(true);
+    thumbnailApi.sendError(
+      mockResponse as unknown as express.Response,
+      "12345",
+      502,
+      new Error("late"),
+    );
+    expect(mockResponse.set).not.toHaveBeenCalled();
+    expect(mockResponse.sendStatus).not.toHaveBeenCalled();
+  });
 });
 
 describe("ThumbnailApi async tests", () => {
@@ -119,7 +158,7 @@ describe("ThumbnailApi async tests", () => {
 
   responseHelper.getHeadersFromTarget = (headers: Headers) => {
     expect(headers).toBeDefined();
-    return new Map([["content-type", "image/jpeg"]]);
+    return { "content-type": "image/jpeg" };
   };
 
   const mockPipe = jest.fn();
@@ -160,7 +199,7 @@ describe("ThumbnailApi async tests", () => {
         status: 200,
       } as Response),
     );
-    responseHelper.getHeadersFromTarget = jest.fn(() => new Map());
+    responseHelper.getHeadersFromTarget = jest.fn(() => ({}));
     responseHelper.translateStatusCode = jest.fn(() => 200);
     responseHelper.okBody = okBody;
 
@@ -272,9 +311,9 @@ describe("ThumbnailApi async tests", () => {
         status: 200,
       } as Response),
     );
-    responseHelper.getHeadersFromTarget = jest.fn(
-      () => new Map([["content-type", "image/jpeg"]]),
-    );
+    responseHelper.getHeadersFromTarget = jest.fn(() => ({
+      "content-type": "image/jpeg",
+    }));
     responseHelper.translateStatusCode = jest.fn(() => 200);
     responseHelper.okBody = okBody;
     responseHelper.okHeaders = okHeaders;
@@ -463,7 +502,7 @@ describe("ThumbnailApi async tests", () => {
 
     responseHelper.getHeadersFromTarget = (headers: Headers) => {
       expect(headers).toBeDefined();
-      return new Map([["content-type", "image/jpeg"]]);
+      return { "content-type": "image/jpeg" };
     };
 
     const okStatus = jest.fn(() => false);

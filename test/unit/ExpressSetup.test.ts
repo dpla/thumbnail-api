@@ -5,6 +5,7 @@ import { ExpressSetup } from "../../src/ExpressSetup";
 import { Server } from "node:http";
 import { ThumbnailApi } from "../../src/ThumbnailApi";
 import * as Sentry from "@sentry/node";
+import { NO_STORE_HEADERS } from "../../src/ResponseHelper";
 
 import { jest } from "@jest/globals";
 
@@ -110,58 +111,87 @@ describe("ExpressSetup", () => {
     expect(express.get).toHaveBeenCalledWith("/health", expect.anything());
   });
 
-  test("thumb route answers 502 when the handler throws", async () => {
-    const fakeThumbnailApi = {
-      handle: jest.fn(() => Promise.reject(new Error("boom"))),
-    } as unknown as ThumbnailApi;
-    expressSetup.routes(fakeThumbnailApi);
-
+  const getThumbRoute = () => {
     const thumbRoute = (express.get as jest.Mock).mock.calls.find(
       (call) => call[0] === "/thumb/*",
     );
     expect(thumbRoute).toBeDefined();
-    const routeHandler = thumbRoute?.[1] as (
-      req: unknown,
-      res: unknown,
-    ) => void;
+    return thumbRoute?.[1] as (req: unknown, res: unknown) => void;
+  };
 
+  const fakeResponse = (headersSent: boolean, writableEnded = false) => {
     const res = {
-      headersSent: false,
-      setTimeout: jest.fn(),
+      headersSent,
+      writableEnded,
+      timeoutCallback: undefined as (() => void) | undefined,
+      setTimeout: jest.fn((_ms: number, cb: () => void) => {
+        res.timeoutCallback = cb;
+      }),
+      set: jest.fn(),
       sendStatus: jest.fn(),
       end: jest.fn(),
+      destroy: jest.fn(),
+      send: jest.fn(),
+      status: jest.fn(() => res),
     };
-    routeHandler({}, res);
+    return res;
+  };
+
+  const failingThumbnailApi = () =>
+    ({
+      handle: jest.fn(() => Promise.reject(new Error("boom"))),
+    }) as unknown as ThumbnailApi;
+
+  test("thumb route answers 502 when the handler throws", async () => {
+    expressSetup.routes(failingThumbnailApi());
+    const res = fakeResponse(false);
+
+    getThumbRoute()({}, res);
     await new Promise((resolve) => setImmediate(resolve));
 
+    expect(res.set).toHaveBeenCalledWith(NO_STORE_HEADERS);
     expect(res.sendStatus).toHaveBeenCalledWith(502);
     expect(res.end).toHaveBeenCalledTimes(1);
+    expect(res.destroy).not.toHaveBeenCalled();
   });
 
-  test("thumb route leaves a started response alone when the handler throws", async () => {
-    const fakeThumbnailApi = {
-      handle: jest.fn(() => Promise.reject(new Error("boom"))),
-    } as unknown as ThumbnailApi;
-    expressSetup.routes(fakeThumbnailApi);
+  test("thumb route destroys a half-sent response when the handler throws", async () => {
+    expressSetup.routes(failingThumbnailApi());
+    const res = fakeResponse(true, false);
 
-    const thumbRoute = (express.get as jest.Mock).mock.calls.find(
-      (call) => call[0] === "/thumb/*",
-    );
-    const routeHandler = thumbRoute?.[1] as (
-      req: unknown,
-      res: unknown,
-    ) => void;
-
-    const res = {
-      headersSent: true,
-      setTimeout: jest.fn(),
-      sendStatus: jest.fn(),
-      end: jest.fn(),
-    };
-    routeHandler({}, res);
+    getThumbRoute()({}, res);
     await new Promise((resolve) => setImmediate(resolve));
 
     expect(res.sendStatus).not.toHaveBeenCalled();
     expect(res.end).not.toHaveBeenCalled();
+    expect(res.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  test("thumb route leaves a finished response alone when the handler throws", async () => {
+    expressSetup.routes(failingThumbnailApi());
+    const res = fakeResponse(true, true);
+
+    getThumbRoute()({}, res);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(res.sendStatus).not.toHaveBeenCalled();
+    expect(res.destroy).not.toHaveBeenCalled();
+  });
+
+  test("response timeout sends an uncacheable 504", async () => {
+    const neverResolves = {
+      handle: jest.fn(() => new Promise<void>(() => undefined)),
+    } as unknown as ThumbnailApi;
+    expressSetup.routes(neverResolves);
+    const res = fakeResponse(false);
+
+    getThumbRoute()({}, res);
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(res.timeoutCallback).toBeDefined();
+    res.timeoutCallback?.();
+
+    expect(res.set).toHaveBeenCalledWith(NO_STORE_HEADERS);
+    expect(res.status).toHaveBeenCalledWith(504);
+    expect(res.send).toHaveBeenCalledWith("Gateway Timeout");
   });
 });

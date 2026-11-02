@@ -3,7 +3,7 @@ import * as express from "express";
 import { DplaApi } from "./DplaApi";
 import { ThumbnailStorage } from "./ThumbnailStorage";
 import { ThumbnailCacheQueue } from "./ThumbnailCacheQueue";
-import { ResponseHelper } from "./ResponseHelper";
+import { NO_STORE_HEADERS, ResponseHelper } from "./ResponseHelper";
 import { getLogger } from "./logger";
 import { Logger } from "winston";
 
@@ -235,6 +235,12 @@ export class ThumbnailApi {
     }
     if (error) {
       this.logger.error("Sending %s for %s:", code, itemId, error);
+    }
+    if (code >= 500) {
+      // Cache headers may already be set;
+      // failures are considered transient,
+      // so it must not be cached under that TTL.
+      res.set(NO_STORE_HEADERS);
     }
     res.sendStatus(code);
     res.end();
