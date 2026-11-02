@@ -48,6 +48,14 @@ describe("ThumbnailStorage", () => {
     });
   });
 
+  test("lookupImageInS3: sends an abort signal so the call cannot hang", async () => {
+    mockS3Client.on(HeadObjectCommand).resolves({} as HeadObjectCommandOutput);
+    await thumbnailStorage.lookupImageInS3("12345");
+    const sendArgs = mockS3Client.call(0).args as unknown[];
+    const options = sendArgs[1] as { abortSignal?: unknown };
+    expect(options.abortSignal).toBeInstanceOf(AbortSignal);
+  });
+
   test("lookupImageInS3: not found", async () => {
     const id = "12345";
     mockS3Client

@@ -13,8 +13,12 @@ export const FETCH_TIMEOUT_MS = 5_000;
 // API_TIMEOUT_MS: how long to wait for DPLA API item lookup.
 export const API_TIMEOUT_MS = 3_000;
 
-if (API_TIMEOUT_MS + FETCH_TIMEOUT_MS >= RESPONSE_TIMEOUT_MS) {
+// S3_TIMEOUT_MS: how long to wait for the S3 HeadObject cache check.
+export const S3_TIMEOUT_MS = 1_500;
+
+// Every request checks S3 first, then the API lookup.
+if (S3_TIMEOUT_MS + API_TIMEOUT_MS + FETCH_TIMEOUT_MS >= RESPONSE_TIMEOUT_MS) {
   throw new Error(
-    `Invalid timeout config: API_TIMEOUT_MS (${String(API_TIMEOUT_MS)}) + FETCH_TIMEOUT_MS (${String(FETCH_TIMEOUT_MS)}) must be less than RESPONSE_TIMEOUT_MS (${String(RESPONSE_TIMEOUT_MS)})`,
+    `Invalid timeout config: S3_TIMEOUT_MS (${String(S3_TIMEOUT_MS)}) + API_TIMEOUT_MS (${String(API_TIMEOUT_MS)}) + FETCH_TIMEOUT_MS (${String(FETCH_TIMEOUT_MS)}) must be less than RESPONSE_TIMEOUT_MS (${String(RESPONSE_TIMEOUT_MS)})`,
   );
 }
