@@ -20,6 +20,7 @@ export class ResponseHelper {
     expressResponse: express.Response,
   ): Promise<void> {
     const source = Readable.fromWeb(body);
+    source.on("error", () => undefined);
     try {
       await pipeline(source, expressResponse);
     } catch (err) {
