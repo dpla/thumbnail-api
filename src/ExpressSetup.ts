@@ -6,6 +6,7 @@ import * as Http from "node:http";
 import { ThumbnailApi } from "./ThumbnailApi";
 import { Server } from "node:http";
 import { REQUEST_TIMEOUT_MS, RESPONSE_TIMEOUT_MS } from "./timeoutConfig";
+import { NO_STORE_HEADERS } from "./ResponseHelper";
 
 export class ExpressSetup {
   app: Express;
@@ -93,12 +94,21 @@ export class ExpressSetup {
           res.destroy();
           return;
         }
+        res.set(NO_STORE_HEADERS);
         res.status(504).send("Gateway Timeout");
       });
       try {
         await thumbnailApi.handle(req, res);
       } catch (error) {
         this.logger.error("Unexpected Error fetching thumb:", error);
+        // Answer now; if the body was already streaming, close the socket.
+        if (!res.headersSent) {
+          res.set(NO_STORE_HEADERS);
+          res.sendStatus(502);
+          res.end();
+        } else if (!res.writableEnded) {
+          res.destroy();
+        }
       }
     };
 

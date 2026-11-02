@@ -6,10 +6,19 @@ import { FETCH_TIMEOUT_MS } from "./timeoutConfig";
 
 const logger = getLogger();
 
+// Headers for error responses
+export const NO_STORE_HEADERS: Record<string, string> = {
+  "Cache-Control": "no-store",
+  Expires: "0",
+};
+
 export class ResponseHelper {
   FETCH_TIMEOUT = FETCH_TIMEOUT_MS;
 
-  async pipe(body: ReadableStream, expressResponse: express.Response): Promise<void> {
+  async pipe(
+    body: ReadableStream,
+    expressResponse: express.Response,
+  ): Promise<void> {
     try {
       await pipeline(Readable.fromWeb(body), expressResponse);
     } catch (err) {
@@ -40,17 +49,17 @@ export class ResponseHelper {
   }
 
   //providers/s3 could set all sorts of weird headers, but we only want to pass along a few
-  getHeadersFromTarget(headers: Headers): Map<string, string> {
-    const result = new Map<string, string>();
+  getHeadersFromTarget(headers: Headers): Record<string, string> {
+    const result: Record<string, string> = {};
 
     const addHeader = (
-      result: Map<string, string>,
+      result: Record<string, string>,
       headers: Headers,
       header: string,
     ) => {
       const value = headers.get(header);
       if (value) {
-        result.set(header, value);
+        result[header] = value;
       }
     };
 
@@ -99,13 +108,13 @@ export class ResponseHelper {
   // parameterized because we want provider errors to be cached for a shorter time
   // whereas s3 responses should live there for a long time
   // see LONG_CACHE_TIME and SHORT_CACHE_TIME, above
-  getCacheHeaders(seconds: number): Map<string, string> {
+  getCacheHeaders(seconds: number): Record<string, string> {
     const now = Date.now();
     const expirationDateString = new Date(now + 1000 * seconds).toUTCString();
     const cacheControl = `public, max-age=${String(seconds)}`;
-    return new Map([
-      ["Cache-Control", cacheControl],
-      ["Expires", expirationDateString],
-    ]);
+    return {
+      "Cache-Control": cacheControl,
+      Expires: expirationDateString,
+    };
   }
 }

@@ -8,6 +8,7 @@ import {
 } from "@aws-sdk/client-s3";
 
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { S3_TIMEOUT_MS } from "./timeoutConfig";
 
 export class ThumbnailStorage {
   s3Client: S3Client;
@@ -26,7 +27,9 @@ export class ThumbnailStorage {
     const commandInput: HeadObjectCommand = new HeadObjectCommand(params);
 
     try {
-      await this.s3Client.send(commandInput);
+      await this.s3Client.send(commandInput, {
+        abortSignal: AbortSignal.timeout(S3_TIMEOUT_MS),
+      });
       return true;
     } catch (e) {
       if (e instanceof NotFound) {

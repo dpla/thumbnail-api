@@ -3,7 +3,7 @@ import * as express from "express";
 import { DplaApi } from "./DplaApi";
 import { ThumbnailStorage } from "./ThumbnailStorage";
 import { ThumbnailCacheQueue } from "./ThumbnailCacheQueue";
-import { ResponseHelper } from "./ResponseHelper";
+import { NO_STORE_HEADERS, ResponseHelper } from "./ResponseHelper";
 import { getLogger } from "./logger";
 import { Logger } from "winston";
 
@@ -39,7 +39,17 @@ export class ThumbnailApi {
       return;
     }
 
-    const foundInS3 = await this.thumbnailStorage.lookupImageInS3(itemId);
+    let foundInS3: boolean;
+
+    try {
+      foundInS3 = await this.thumbnailStorage.lookupImageInS3(itemId);
+    } catch (e) {
+      const error = new Error("Couldn't check S3 for cached image.", {
+        cause: e,
+      });
+      this.sendError(res, itemId, 502, error);
+      return;
+    }
 
     if (foundInS3) {
       return this.serveItemFromS3(itemId, res);
@@ -117,7 +127,9 @@ export class ThumbnailApi {
     } catch (err) {
       this.releaseUpstreamBody(remoteImageResponse);
       const error =
-        err instanceof Error ? err : new Error("Failed to set upstream headers.");
+        err instanceof Error
+          ? err
+          : new Error("Failed to set upstream headers.");
       this.sendError(expressResponse, itemId, 502, error);
       return;
     }
@@ -142,9 +154,19 @@ export class ThumbnailApi {
     expressResponse: express.Response,
   ): Promise<void> {
     expressResponse.set(this.responseHelper.getCacheHeaders(LONG_CACHE_TIME));
-    const s3url: string = await this.thumbnailStorage.getSignedS3Url(itemId);
-    const response: Response =
-      await this.responseHelper.getRemoteImagePromise(s3url);
+
+    let response: Response;
+
+    try {
+      const s3url: string = await this.thumbnailStorage.getSignedS3Url(itemId);
+      response = await this.responseHelper.getRemoteImagePromise(s3url);
+    } catch (e) {
+      const error = new Error("Couldn't fetch cached image from S3.", {
+        cause: e,
+      });
+      this.sendError(expressResponse, itemId, 502, error);
+      return;
+    }
 
     const status = this.responseHelper.translateStatusCode(response.status);
 
@@ -161,9 +183,10 @@ export class ThumbnailApi {
       );
     } catch (err) {
       this.releaseUpstreamBody(response);
-      const error = err instanceof Error
-        ? err
-        : new Error("Failed to set upstream headers.");
+      const error =
+        err instanceof Error
+          ? err
+          : new Error("Failed to set upstream headers.");
       this.sendError(expressResponse, itemId, 502, error);
       return;
     }
@@ -202,11 +225,22 @@ export class ThumbnailApi {
     error?: Error,
   ): void {
     if (res.headersSent) {
-      this.logger.error("Unable to send %s for %s: headers already sent", code, itemId, error);
+      this.logger.error(
+        "Unable to send %s for %s: headers already sent",
+        code,
+        itemId,
+        error,
+      );
       return;
     }
     if (error) {
       this.logger.error("Sending %s for %s:", code, itemId, error);
+    }
+    if (code >= 500) {
+      // Cache headers may already be set;
+      // failures are considered transient,
+      // so it must not be cached under that TTL.
+      res.set(NO_STORE_HEADERS);
     }
     res.sendStatus(code);
     res.end();

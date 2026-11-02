@@ -6,7 +6,7 @@ expect.extend(matchers);
 import { DplaApi } from "../../src/DplaApi";
 import { ThumbnailStorage } from "../../src/ThumbnailStorage";
 import { ThumbnailCacheQueue } from "../../src/ThumbnailCacheQueue";
-import { ResponseHelper } from "../../src/ResponseHelper";
+import { NO_STORE_HEADERS, ResponseHelper } from "../../src/ResponseHelper";
 import { S3Client } from "@aws-sdk/client-s3";
 
 import * as express from "express";
@@ -66,6 +66,45 @@ describe("ThumbnailApi", () => {
     expect(mockResponse.sendStatus).toHaveBeenCalledWith(code);
     expect(mockResponse.end).toHaveBeenCalledTimes(1);
   });
+
+  test("sendError: 5xx overrides cache headers with no-store", () => {
+    thumbnailApi.logger.configure({ silent: true });
+    const mockResponse = new ExpressResponse();
+    thumbnailApi.sendError(
+      mockResponse as unknown as express.Response,
+      "12345",
+      502,
+      new Error("s3 down"),
+    );
+    expect(mockResponse.set).toHaveBeenCalledWith(NO_STORE_HEADERS);
+    expect(mockResponse.sendStatus).toHaveBeenCalledWith(502);
+  });
+
+  test("sendError: 404 leaves cache headers alone", () => {
+    thumbnailApi.logger.configure({ silent: true });
+    const mockResponse = new ExpressResponse();
+    thumbnailApi.sendError(
+      mockResponse as unknown as express.Response,
+      "12345",
+      404,
+    );
+    expect(mockResponse.set).not.toHaveBeenCalled();
+    expect(mockResponse.sendStatus).toHaveBeenCalledWith(404);
+  });
+
+  test("sendError: headers already sent sends nothing", () => {
+    thumbnailApi.logger.configure({ silent: true });
+    const mockResponse = new ExpressResponse();
+    mockResponse.setHeadersSent(true);
+    thumbnailApi.sendError(
+      mockResponse as unknown as express.Response,
+      "12345",
+      502,
+      new Error("late"),
+    );
+    expect(mockResponse.set).not.toHaveBeenCalled();
+    expect(mockResponse.sendStatus).not.toHaveBeenCalled();
+  });
 });
 
 describe("ThumbnailApi async tests", () => {
@@ -119,7 +158,7 @@ describe("ThumbnailApi async tests", () => {
 
   responseHelper.getHeadersFromTarget = (headers: Headers) => {
     expect(headers).toBeDefined();
-    return new Map([["content-type", "image/jpeg"]]);
+    return { "content-type": "image/jpeg" };
   };
 
   const mockPipe = jest.fn();
@@ -160,7 +199,7 @@ describe("ThumbnailApi async tests", () => {
         status: 200,
       } as Response),
     );
-    responseHelper.getHeadersFromTarget = jest.fn(() => new Map());
+    responseHelper.getHeadersFromTarget = jest.fn(() => ({}));
     responseHelper.translateStatusCode = jest.fn(() => 200);
     responseHelper.okBody = okBody;
 
@@ -180,6 +219,73 @@ describe("ThumbnailApi async tests", () => {
     );
     expect(okBody).toHaveBeenCalledTimes(1);
     expect(sendError).toHaveBeenCalledTimes(1);
+  });
+
+  test("serveItemFromS3: fetch failure sends 502", async () => {
+    const responseHelper = new ResponseHelper();
+    responseHelper.getRemoteImagePromise = jest.fn(() =>
+      Promise.reject(new Error("The operation was aborted due to timeout")),
+    );
+    const pipe = jest.fn();
+    responseHelper.pipe = pipe;
+
+    const thumbnailApi = new ThumbnailApi(
+      dplaApi as unknown as DplaApi,
+      thumbnailStorage as unknown as ThumbnailStorage,
+      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      responseHelper,
+    );
+
+    const sendError = jest.fn();
+    thumbnailApi.sendError = sendError;
+
+    await thumbnailApi.serveItemFromS3(
+      itemId,
+      mockExpressResponse as unknown as express.Response,
+    );
+    expect(sendError).toHaveBeenCalledTimes(1);
+    expect(sendError).toHaveBeenCalledWith(
+      mockExpressResponse,
+      itemId,
+      502,
+      expect.any(Error),
+    );
+    expect(pipe).not.toHaveBeenCalled();
+  });
+
+  test("serveItemFromS3: signed url failure sends 502", async () => {
+    const thumbnailStorage = new ThumbnailStorage(
+      mockS3Client as unknown as S3Client,
+      "bucket",
+    );
+    thumbnailStorage.getSignedS3Url = jest.fn(() =>
+      Promise.reject(new Error("no credentials")),
+    );
+    const getRemoteImagePromise = jest.fn();
+    const responseHelper = new ResponseHelper();
+    responseHelper.getRemoteImagePromise = getRemoteImagePromise;
+
+    const thumbnailApi = new ThumbnailApi(
+      dplaApi as unknown as DplaApi,
+      thumbnailStorage as unknown as ThumbnailStorage,
+      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      responseHelper,
+    );
+
+    const sendError = jest.fn();
+    thumbnailApi.sendError = sendError;
+
+    await thumbnailApi.serveItemFromS3(
+      itemId,
+      mockExpressResponse as unknown as express.Response,
+    );
+    expect(sendError).toHaveBeenCalledWith(
+      mockExpressResponse,
+      itemId,
+      502,
+      expect.any(Error),
+    );
+    expect(getRemoteImagePromise).not.toHaveBeenCalled();
   });
 
   test("proxyItemFromContributor: success", async () => {
@@ -205,9 +311,9 @@ describe("ThumbnailApi async tests", () => {
         status: 200,
       } as Response),
     );
-    responseHelper.getHeadersFromTarget = jest.fn(
-      () => new Map([["content-type", "image/jpeg"]]),
-    );
+    responseHelper.getHeadersFromTarget = jest.fn(() => ({
+      "content-type": "image/jpeg",
+    }));
     responseHelper.translateStatusCode = jest.fn(() => 200);
     responseHelper.okBody = okBody;
     responseHelper.okHeaders = okHeaders;
@@ -396,7 +502,7 @@ describe("ThumbnailApi async tests", () => {
 
     responseHelper.getHeadersFromTarget = (headers: Headers) => {
       expect(headers).toBeDefined();
-      return new Map([["content-type", "image/jpeg"]]);
+      return { "content-type": "image/jpeg" };
     };
 
     const okStatus = jest.fn(() => false);
@@ -474,6 +580,48 @@ describe("ThumbnailApi async tests", () => {
 
     expect(lookupImageInS3).toHaveBeenCalledTimes(1);
     expect(serveItemFromS3).toHaveBeenCalledTimes(1);
+  });
+
+  test("handle: S3 lookup failure sends 502", async () => {
+    const thumbnailStorage = new ThumbnailStorage(
+      mockS3Client as unknown as S3Client,
+      "bucket",
+    );
+
+    thumbnailStorage.lookupImageInS3 = jest.fn(() =>
+      Promise.reject(new Error("S3 communications failure.")),
+    );
+
+    const thumbnailApi = new ThumbnailApi(
+      dplaApi as unknown as DplaApi,
+      thumbnailStorage as unknown as ThumbnailStorage,
+      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      responseHelper,
+    );
+
+    const serveItemFromS3 = jest.fn();
+    thumbnailApi.serveItemFromS3 = serveItemFromS3;
+    const proxyItemFromContributor = jest.fn();
+    thumbnailApi.proxyItemFromContributor = proxyItemFromContributor;
+    const sendError = jest.fn();
+    thumbnailApi.sendError = sendError;
+
+    const req = new ExpressRequest();
+    req.setPath("/thumb/5b02148ac3ef6f63b6ba84c1cb4122ae");
+    const res = new ExpressResponse();
+    await thumbnailApi.handle(
+      req as unknown as express.Request,
+      res as unknown as express.Response,
+    );
+
+    expect(sendError).toHaveBeenCalledWith(
+      res,
+      "5b02148ac3ef6f63b6ba84c1cb4122ae",
+      502,
+      expect.any(Error),
+    );
+    expect(serveItemFromS3).not.toHaveBeenCalled();
+    expect(proxyItemFromContributor).not.toHaveBeenCalled();
   });
 
   test("handle: proxyFromContributor", async () => {
