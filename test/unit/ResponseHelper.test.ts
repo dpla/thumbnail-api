@@ -99,6 +99,43 @@ describe("ResponseHelper", () => {
     await responseHelper.pipe(erroring, dest as unknown as Response);
     expect(endSpy).toHaveBeenCalledTimes(1);
   });
+
+  test("pipe: cancels the upstream body when the response is already destroyed", async () => {
+    const dest = new PassThrough();
+    dest.destroy();
+
+    const cancel = jest.fn();
+    const body = new ReadableStream({
+      pull(controller) {
+        controller.enqueue("chunk");
+      },
+      cancel,
+    });
+
+    await responseHelper.pipe(body, dest as unknown as Response);
+    expect(cancel).toHaveBeenCalledTimes(1);
+  });
+
+  test("pipe: handles an already-errored body when the response is already destroyed", async () => {
+    const dest = new PassThrough();
+    dest.destroy();
+
+    const errored = new ReadableStream({
+      start(controller) {
+        controller.error(new Error("upstream error"));
+      },
+    });
+
+    const uncaught = jest.fn();
+    process.on("uncaughtException", uncaught);
+    try {
+      await responseHelper.pipe(errored, dest as unknown as Response);
+      await new Promise((resolve) => setImmediate(resolve));
+    } finally {
+      process.off("uncaughtException", uncaught);
+    }
+    expect(uncaught).not.toHaveBeenCalled();
+  });
 });
 
 describe("ResponseHelper getRemoteImagePromise tests", () => {
