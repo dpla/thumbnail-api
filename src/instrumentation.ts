@@ -13,6 +13,7 @@ init({
   dataCollection: {
     userInfo: false,
     cookies: false,
+    httpBodies: [],
     httpHeaders: {
       request: {
         deny: ["forwarded", "client-ip", "real-ip", "viewer-address"],
