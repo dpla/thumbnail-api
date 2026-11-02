@@ -1,11 +1,7 @@
 import { mockClient } from "aws-sdk-client-mock";
 import "aws-sdk-client-mock-jest";
 
-import {
-  SendMessageCommand,
-  SendMessageCommandOutput,
-  SQSClient,
-} from "@aws-sdk/client-sqs";
+import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
 import { ThumbnailCacheQueue } from "../../src/ThumbnailCacheQueue";
 
 describe("ThumbnailCacheQueue", () => {
@@ -42,9 +38,7 @@ describe("ThumbnailCacheQueue", () => {
   test("queueToThumbnailCache", async () => {
     const id = "12345";
     const url = "https://example.com/12345";
-    mockSqsClient
-      .on(SendMessageCommand)
-      .resolves({} as SendMessageCommandOutput);
+    mockSqsClient.on(SendMessageCommand).resolves({});
     await thumbnailCacheQueue.queueToThumbnailCache(id, url);
     expect(mockSqsClient).toHaveReceivedCommandWith(SendMessageCommand, {
       MessageBody: JSON.stringify({ id: id, url: url }),

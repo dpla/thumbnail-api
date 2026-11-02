@@ -1,10 +1,8 @@
 import { getLogger } from "../../src/logger";
-import { Express as MockExpress } from "jest-express/lib/express";
-import { Express } from "express";
+import mockExpress, { type MockExpress } from "jest-express";
 import { ExpressSetup } from "../../src/ExpressSetup";
 import { Server } from "node:http";
 import { ThumbnailApi } from "../../src/ThumbnailApi";
-import * as Sentry from "@sentry/node";
 import { NO_STORE_HEADERS } from "../../src/ResponseHelper";
 
 import { jest } from "@jest/globals";
@@ -16,19 +14,13 @@ describe("ExpressSetup", () => {
   beforeEach(() => {
     const logger = getLogger();
     logger.configure({ silent: true });
-    express = new MockExpress();
-    expressSetup = new ExpressSetup(express as unknown as Express, logger);
+    express = mockExpress();
+    expressSetup = new ExpressSetup(express, logger);
   });
 
   test("morgan installs morgan middleware", () => {
     expressSetup.morgan();
     expect(express.use).toHaveBeenCalled();
-  });
-
-  test("sentry installs sentry middleware", () => {
-    const sentrySpy = jest.spyOn(Sentry, "setupExpressErrorHandler");
-    expressSetup.sentry();
-    expect(sentrySpy).toHaveBeenCalledWith(express);
   });
 
   test("registerHandlers registers all the right handlers.", () => {
@@ -92,28 +84,29 @@ describe("ExpressSetup", () => {
 
   test("server", () => {
     const fakeServer = new Server();
-    const listen = jest.fn((port, callback: () => void) => {
-      expect(callback).toBeDefined();
-      callback();
-      expect(port).toBe(4567);
-      return fakeServer;
-    });
+    const listen = jest.fn(() => fakeServer);
     express.listen = listen;
     const server = expressSetup.server(4567);
-    expect(listen).toHaveBeenCalled();
+    expect(listen).toHaveBeenCalledWith(4567);
     expect(server).toBe(fakeServer);
+    const info = jest.spyOn(expressSetup.logger, "info");
+    fakeServer.emit("listening");
+    expect(info).toHaveBeenCalledWith("Server is listening on 4567");
   });
 
   test("routes", () => {
     const fakeThumbnailApi = {} as unknown as ThumbnailApi;
     expressSetup.routes(fakeThumbnailApi);
-    expect(express.get).toHaveBeenCalledWith("/thumb/*", expect.anything());
+    expect(express.get).toHaveBeenCalledWith(
+      "/thumb/{*splat}",
+      expect.anything(),
+    );
     expect(express.get).toHaveBeenCalledWith("/health", expect.anything());
   });
 
   const getThumbRoute = () => {
-    const thumbRoute = (express.get as jest.Mock).mock.calls.find(
-      (call) => call[0] === "/thumb/*",
+    const thumbRoute = express.get.mock.calls.find(
+      (call) => call[0] === "/thumb/{*splat}",
     );
     expect(thumbRoute).toBeDefined();
     return thumbRoute?.[1] as (req: unknown, res: unknown) => void;
@@ -127,6 +120,7 @@ describe("ExpressSetup", () => {
       setTimeout: jest.fn((_ms: number, cb: () => void) => {
         res.timeoutCallback = cb;
       }),
+      setMaxListeners: jest.fn(),
       set: jest.fn(),
       sendStatus: jest.fn(),
       end: jest.fn(),

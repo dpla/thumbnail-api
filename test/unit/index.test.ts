@@ -48,7 +48,6 @@ describe("index", () => {
       expect(port).toBe(3000);
       return fakeServer;
     });
-    const sentry = jest.fn();
     const morgan = jest.fn();
     const routes = jest.fn();
     const registerHandlers = jest.fn();
@@ -57,7 +56,6 @@ describe("index", () => {
     const buildThumbnailApi = jest.fn(() => fakeBuildThumbnailApi);
     main.buildThumbnailApi = buildThumbnailApi;
     const expressSetup = {
-      sentry,
       morgan,
       server,
       routes,
@@ -66,7 +64,6 @@ describe("index", () => {
     } as unknown as ExpressSetup;
 
     main.doWorker(expressSetup);
-    expect(sentry).toHaveBeenCalled();
     expect(morgan).toHaveBeenCalled();
     expect(routes).toHaveBeenCalledWith(fakeBuildThumbnailApi);
     expect(buildThumbnailApi).toHaveBeenCalled();

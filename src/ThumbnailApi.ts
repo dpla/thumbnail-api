@@ -121,9 +121,7 @@ export class ThumbnailApi {
     }
 
     try {
-      expressResponse.set(
-        this.responseHelper.getHeadersFromTarget(remoteImageResponse.headers),
-      );
+      this.setUpstreamHeaders(expressResponse, remoteImageResponse.headers);
     } catch (err) {
       this.releaseUpstreamBody(remoteImageResponse);
       const error =
@@ -178,9 +176,7 @@ export class ThumbnailApi {
     }
 
     try {
-      expressResponse.set(
-        this.responseHelper.getHeadersFromTarget(response.headers),
-      );
+      this.setUpstreamHeaders(expressResponse, response.headers);
     } catch (err) {
       this.releaseUpstreamBody(response);
       const error =
@@ -214,8 +210,19 @@ export class ThumbnailApi {
     }
   }
 
+  // res.set() runs Content-Type through mime-types and can rewrite it.
+  private setUpstreamHeaders(
+    expressResponse: express.Response,
+    upstreamHeaders: Headers,
+  ): void {
+    const headers = this.responseHelper.getHeadersFromTarget(upstreamHeaders);
+    for (const [name, value] of Object.entries(headers)) {
+      expressResponse.setHeader(name, value);
+    }
+  }
+
   private releaseUpstreamBody(response: Response): void {
-    void response.body?.cancel().catch((_err: unknown) => void _err);
+    void response.body?.cancel().catch(() => undefined);
   }
 
   sendError(

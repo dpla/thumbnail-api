@@ -71,7 +71,7 @@ describe("ResponseHelper", () => {
     const writeSpy = jest.spyOn(dest, "write");
     const endSpy = jest.spyOn(dest, "end");
 
-    const source = (async function* () {
+    const source = (function* () {
       yield "1";
       yield "2";
       yield "3";
