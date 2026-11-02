@@ -99,6 +99,22 @@ describe("ResponseHelper", () => {
     await responseHelper.pipe(erroring, dest as unknown as Response);
     expect(endSpy).toHaveBeenCalledTimes(1);
   });
+
+  test("pipe: cancels the upstream body when the response is already destroyed", async () => {
+    const dest = new PassThrough();
+    dest.destroy();
+
+    const cancel = jest.fn();
+    const body = new ReadableStream({
+      pull(controller) {
+        controller.enqueue("chunk");
+      },
+      cancel,
+    });
+
+    await responseHelper.pipe(body, dest as unknown as Response);
+    expect(cancel).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("ResponseHelper getRemoteImagePromise tests", () => {

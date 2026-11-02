@@ -19,9 +19,11 @@ export class ResponseHelper {
     body: ReadableStream,
     expressResponse: express.Response,
   ): Promise<void> {
+    const source = Readable.fromWeb(body);
     try {
-      await pipeline(Readable.fromWeb(body), expressResponse);
+      await pipeline(source, expressResponse);
     } catch (err) {
+      source.destroy();
       logger.error("Stream error piping response from upstream:", err);
       if (!expressResponse.writableEnded) {
         expressResponse.end();
