@@ -177,6 +177,9 @@ export class ThumbnailApi {
 
     try {
       this.setUpstreamHeaders(expressResponse, response.headers);
+      // Apply ContentType metadata to images
+      // (S3 may serve them as application/octet-stream)
+      expressResponse.setHeader("Content-Type", "image/jpeg");
     } catch (err) {
       this.releaseUpstreamBody(response);
       const error =
