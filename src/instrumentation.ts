@@ -8,16 +8,28 @@ init({
   debug: process.env.SENTRY_DEBUG === "true",
   dsn: process.env.SENTRY_DSN,
   environment: process.env.SENTRY_ENVIRONMENT ?? "development",
+
+  // Keep client IPs and cookies out of Sentry.
+  dataCollection: {
+    userInfo: false,
+    cookies: false,
+    httpHeaders: {
+      request: {
+        deny: ["forwarded", "client-ip", "real-ip", "viewer-address"],
+      },
+      response: true,
+    },
+  },
   integrations: [
     // Add our Profiling integration
     nodeProfilingIntegration(),
   ],
 
-  // Add Tracing by setting tracesSampleRate
-  // We recommend adjusting this value in production
-  tracesSampleRate: 1.0,
+  // Sample only request-rooted traces.
+  tracesSampler: ({ attributes }) =>
+    attributes["sentry.op"] === "http.server" ? 1.0 : 0,
 
-  // Set sampling rate for profiling
-  // This is relative to tracesSampleRate
-  profilesSampleRate: 1.0,
+  // Profiles while a sampled span is active; sampled once per process.
+  profileSessionSampleRate: 1.0,
+  profileLifecycle: "trace",
 });

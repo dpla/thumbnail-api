@@ -3,7 +3,6 @@ import "aws-sdk-client-mock-jest";
 import {
   GetObjectCommand,
   HeadObjectCommand,
-  HeadObjectCommandOutput,
   NotFound,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -40,7 +39,7 @@ describe("ThumbnailStorage", () => {
 
   test("lookupImageInS3: success", async () => {
     const id = "12345";
-    mockS3Client.on(HeadObjectCommand).resolves({} as HeadObjectCommandOutput);
+    mockS3Client.on(HeadObjectCommand).resolves({});
     await thumbnailStorage.lookupImageInS3(id);
     expect(mockS3Client).toHaveReceivedCommandWith(HeadObjectCommand, {
       Bucket: fakeBucket,
@@ -49,7 +48,7 @@ describe("ThumbnailStorage", () => {
   });
 
   test("lookupImageInS3: sends an abort signal so the call cannot hang", async () => {
-    mockS3Client.on(HeadObjectCommand).resolves({} as HeadObjectCommandOutput);
+    mockS3Client.on(HeadObjectCommand).resolves({});
     await thumbnailStorage.lookupImageInS3("12345");
     const sendArgs = mockS3Client.call(0).args as unknown[];
     const options = sendArgs[1] as { abortSignal?: unknown };

@@ -28,7 +28,7 @@ export class DplaApi {
         Authorization: this.apiToken,
       },
       signal: AbortSignal.timeout(API_TIMEOUT_MS),
-    } as RequestInit;
+    };
   }
 
   isProbablyURL(s: string | undefined): boolean {

@@ -33,7 +33,6 @@ export class Main {
   }
 
   doWorker(expressSetup: ExpressSetup) {
-    expressSetup.sentry();
     expressSetup.morgan();
     expressSetup.routes(this.buildThumbnailApi());
     const server = expressSetup.server(this.getPort());

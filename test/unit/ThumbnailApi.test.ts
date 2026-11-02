@@ -9,9 +9,7 @@ import { ThumbnailCacheQueue } from "../../src/ThumbnailCacheQueue";
 import { NO_STORE_HEADERS, ResponseHelper } from "../../src/ResponseHelper";
 import { S3Client } from "@aws-sdk/client-s3";
 
-import * as express from "express";
-import { Response as ExpressResponse } from "jest-express/lib/response";
-import { Request as ExpressRequest } from "jest-express/lib/request";
+import { createRequest, createResponse } from "jest-express";
 import { SQSClient } from "@aws-sdk/client-sqs";
 
 describe("ThumbnailApi", () => {
@@ -25,7 +23,7 @@ describe("ThumbnailApi", () => {
   const responseHelper = new ResponseHelper();
   const thumbnailApi = new ThumbnailApi(
     dplaApi as unknown as DplaApi,
-    thumbnailStorage as unknown as ThumbnailStorage,
+    thumbnailStorage,
     thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
     responseHelper,
   );
@@ -53,55 +51,37 @@ describe("ThumbnailApi", () => {
   //todo
   test("sendError", () => {
     thumbnailApi.logger.configure({ silent: true });
-    const mockResponse = new ExpressResponse();
+    const mockResponse = createResponse();
     const itemId = "12345";
-    const code = 6789;
+    const code = 503;
     const error = new Error("send me");
-    thumbnailApi.sendError(
-      mockResponse as unknown as express.Response,
-      itemId,
-      code,
-      error,
-    );
+    thumbnailApi.sendError(mockResponse, itemId, code, error);
     expect(mockResponse.sendStatus).toHaveBeenCalledWith(code);
     expect(mockResponse.end).toHaveBeenCalledTimes(1);
   });
 
   test("sendError: 5xx overrides cache headers with no-store", () => {
     thumbnailApi.logger.configure({ silent: true });
-    const mockResponse = new ExpressResponse();
-    thumbnailApi.sendError(
-      mockResponse as unknown as express.Response,
-      "12345",
-      502,
-      new Error("s3 down"),
-    );
+    const mockResponse = createResponse();
+    thumbnailApi.sendError(mockResponse, "12345", 502, new Error("s3 down"));
     expect(mockResponse.set).toHaveBeenCalledWith(NO_STORE_HEADERS);
     expect(mockResponse.sendStatus).toHaveBeenCalledWith(502);
   });
 
   test("sendError: 404 leaves cache headers alone", () => {
     thumbnailApi.logger.configure({ silent: true });
-    const mockResponse = new ExpressResponse();
-    thumbnailApi.sendError(
-      mockResponse as unknown as express.Response,
-      "12345",
-      404,
-    );
-    expect(mockResponse.set).not.toHaveBeenCalled();
+    const mockResponse = createResponse();
+    mockResponse.set({ "Cache-Control": "public, max-age=3600" });
+    thumbnailApi.sendError(mockResponse, "12345", 404);
+    expect(mockResponse.headers["cache-control"]).toBe("public, max-age=3600");
     expect(mockResponse.sendStatus).toHaveBeenCalledWith(404);
   });
 
   test("sendError: headers already sent sends nothing", () => {
     thumbnailApi.logger.configure({ silent: true });
-    const mockResponse = new ExpressResponse();
+    const mockResponse = createResponse();
     mockResponse.setHeadersSent(true);
-    thumbnailApi.sendError(
-      mockResponse as unknown as express.Response,
-      "12345",
-      502,
-      new Error("late"),
-    );
+    thumbnailApi.sendError(mockResponse, "12345", 502, new Error("late"));
     expect(mockResponse.set).not.toHaveBeenCalled();
     expect(mockResponse.sendStatus).not.toHaveBeenCalled();
   });
@@ -164,12 +144,12 @@ describe("ThumbnailApi async tests", () => {
   const mockPipe = jest.fn();
   responseHelper.pipe = mockPipe;
 
-  const mockExpressResponse = new ExpressResponse();
+  const mockExpressResponse = createResponse();
 
   const thumbnailApi = new ThumbnailApi(
-    dplaApi as unknown as DplaApi,
-    thumbnailStorage as unknown as ThumbnailStorage,
-    thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+    dplaApi,
+    thumbnailStorage,
+    thumbnailCacheQueue,
     responseHelper,
   );
 
@@ -179,11 +159,18 @@ describe("ThumbnailApi async tests", () => {
   });
 
   test("serveItemFromS3: success", async () => {
-    await thumbnailApi.serveItemFromS3(
-      itemId,
-      mockExpressResponse as unknown as express.Response,
+    await thumbnailApi.serveItemFromS3(itemId, mockExpressResponse);
+    const { expires, ...headers } = mockExpressResponse.headers;
+    expect(expires).toBeDefined();
+    expect(headers).toEqual({
+      "cache-control": "public, max-age=2592000",
+      "content-type": "image/jpeg",
+    });
+    expect(mockExpressResponse.status).toHaveBeenCalledWith(200);
+    expect(mockExpressResponse.setHeader).toHaveBeenCalledWith(
+      "content-type",
+      "image/jpeg",
     );
-    expect(mockExpressResponse.set).toHaveBeenCalledTimes(2);
     expect(mockPipe).toHaveBeenCalled();
   });
 
@@ -204,19 +191,16 @@ describe("ThumbnailApi async tests", () => {
     responseHelper.okBody = okBody;
 
     const thumbnailApi = new ThumbnailApi(
-      dplaApi as unknown as DplaApi,
-      thumbnailStorage as unknown as ThumbnailStorage,
-      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      dplaApi,
+      thumbnailStorage,
+      thumbnailCacheQueue,
       responseHelper,
     );
 
     const sendError = jest.fn();
     thumbnailApi.sendError = sendError;
 
-    await thumbnailApi.serveItemFromS3(
-      itemId,
-      mockExpressResponse as unknown as express.Response,
-    );
+    await thumbnailApi.serveItemFromS3(itemId, mockExpressResponse);
     expect(okBody).toHaveBeenCalledTimes(1);
     expect(sendError).toHaveBeenCalledTimes(1);
   });
@@ -230,19 +214,16 @@ describe("ThumbnailApi async tests", () => {
     responseHelper.pipe = pipe;
 
     const thumbnailApi = new ThumbnailApi(
-      dplaApi as unknown as DplaApi,
-      thumbnailStorage as unknown as ThumbnailStorage,
-      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      dplaApi,
+      thumbnailStorage,
+      thumbnailCacheQueue,
       responseHelper,
     );
 
     const sendError = jest.fn();
     thumbnailApi.sendError = sendError;
 
-    await thumbnailApi.serveItemFromS3(
-      itemId,
-      mockExpressResponse as unknown as express.Response,
-    );
+    await thumbnailApi.serveItemFromS3(itemId, mockExpressResponse);
     expect(sendError).toHaveBeenCalledTimes(1);
     expect(sendError).toHaveBeenCalledWith(
       mockExpressResponse,
@@ -266,19 +247,16 @@ describe("ThumbnailApi async tests", () => {
     responseHelper.getRemoteImagePromise = getRemoteImagePromise;
 
     const thumbnailApi = new ThumbnailApi(
-      dplaApi as unknown as DplaApi,
-      thumbnailStorage as unknown as ThumbnailStorage,
-      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      dplaApi,
+      thumbnailStorage,
+      thumbnailCacheQueue,
       responseHelper,
     );
 
     const sendError = jest.fn();
     thumbnailApi.sendError = sendError;
 
-    await thumbnailApi.serveItemFromS3(
-      itemId,
-      mockExpressResponse as unknown as express.Response,
-    );
+    await thumbnailApi.serveItemFromS3(itemId, mockExpressResponse);
     expect(sendError).toHaveBeenCalledWith(
       mockExpressResponse,
       itemId,
@@ -289,11 +267,18 @@ describe("ThumbnailApi async tests", () => {
   });
 
   test("proxyItemFromContributor: success", async () => {
-    await thumbnailApi.proxyItemFromContributor(
-      itemId,
-      mockExpressResponse as unknown as express.Response,
+    await thumbnailApi.proxyItemFromContributor(itemId, mockExpressResponse);
+    const { expires, ...headers } = mockExpressResponse.headers;
+    expect(expires).toBeDefined();
+    expect(headers).toEqual({
+      "cache-control": "public, max-age=3600",
+      "content-type": "image/jpeg",
+    });
+    expect(mockExpressResponse.status).toHaveBeenCalledWith(200);
+    expect(mockExpressResponse.setHeader).toHaveBeenCalledWith(
+      "content-type",
+      "image/jpeg",
     );
-    expect(mockExpressResponse.set).toHaveBeenCalledTimes(2);
     expect(mockPipe).toHaveBeenCalled();
   });
 
@@ -319,19 +304,16 @@ describe("ThumbnailApi async tests", () => {
     responseHelper.okHeaders = okHeaders;
 
     const thumbnailApi = new ThumbnailApi(
-      dplaApi as unknown as DplaApi,
-      thumbnailStorage as unknown as ThumbnailStorage,
-      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      dplaApi,
+      thumbnailStorage,
+      thumbnailCacheQueue,
       responseHelper,
     );
 
     const sendError = jest.fn();
     thumbnailApi.sendError = sendError;
 
-    await thumbnailApi.proxyItemFromContributor(
-      itemId,
-      mockExpressResponse as unknown as express.Response,
-    );
+    await thumbnailApi.proxyItemFromContributor(itemId, mockExpressResponse);
     expect(okBody).toHaveBeenCalledTimes(1);
     expect(sendError).toHaveBeenCalledTimes(1);
   });
@@ -356,19 +338,16 @@ describe("ThumbnailApi async tests", () => {
     responseHelper.okHeaders = okHeaders;
 
     const thumbnailApi = new ThumbnailApi(
-      dplaApi as unknown as DplaApi,
-      thumbnailStorage as unknown as ThumbnailStorage,
-      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      dplaApi,
+      thumbnailStorage,
+      thumbnailCacheQueue,
       responseHelper,
     );
 
     const sendError = jest.fn();
     thumbnailApi.sendError = sendError;
 
-    await thumbnailApi.proxyItemFromContributor(
-      itemId,
-      mockExpressResponse as unknown as express.Response,
-    );
+    await thumbnailApi.proxyItemFromContributor(itemId, mockExpressResponse);
 
     expect(okHeaders).toHaveBeenCalled();
     expect(sendError).toHaveBeenCalled();
@@ -383,9 +362,9 @@ describe("ThumbnailApi async tests", () => {
     dplaApi.getThumbnailUrl = getThumbnailUrl;
 
     const thumbnailApiBadThumbnailCall = new ThumbnailApi(
-      dplaApi as unknown as DplaApi,
-      thumbnailStorage as unknown as ThumbnailStorage,
-      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      dplaApi,
+      thumbnailStorage,
+      thumbnailCacheQueue,
       responseHelper,
     );
 
@@ -394,7 +373,7 @@ describe("ThumbnailApi async tests", () => {
 
     await thumbnailApiBadThumbnailCall.proxyItemFromContributor(
       itemId,
-      mockExpressResponse as unknown as express.Response,
+      mockExpressResponse,
     );
 
     expect(getThumbnailUrl).toHaveBeenCalled();
@@ -410,9 +389,9 @@ describe("ThumbnailApi async tests", () => {
     dplaApi.getThumbnailUrl = getThumbnailUrl;
 
     const thumbnailApiBadThumbnailCall = new ThumbnailApi(
-      dplaApi as unknown as DplaApi,
-      thumbnailStorage as unknown as ThumbnailStorage,
-      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      dplaApi,
+      thumbnailStorage,
+      thumbnailCacheQueue,
       responseHelper,
     );
 
@@ -421,7 +400,7 @@ describe("ThumbnailApi async tests", () => {
 
     await thumbnailApiBadThumbnailCall.proxyItemFromContributor(
       itemId,
-      mockExpressResponse as unknown as express.Response,
+      mockExpressResponse,
     );
 
     expect(getThumbnailUrl).toHaveBeenCalled();
@@ -442,16 +421,16 @@ describe("ThumbnailApi async tests", () => {
     thumbnailCacheQueue.queueToThumbnailCache = queueToThumbnailCache;
 
     const thumbnailApiFailingCacheQueue = new ThumbnailApi(
-      dplaApi as unknown as DplaApi,
-      thumbnailStorage as unknown as ThumbnailStorage,
-      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      dplaApi,
+      thumbnailStorage,
+      thumbnailCacheQueue,
       responseHelper,
     );
     thumbnailApiFailingCacheQueue.logger.configure({ silent: true });
 
     await thumbnailApiFailingCacheQueue.proxyItemFromContributor(
       itemId,
-      mockExpressResponse as unknown as express.Response,
+      mockExpressResponse,
     );
 
     expect(queueToThumbnailCache).toHaveBeenCalled();
@@ -466,19 +445,16 @@ describe("ThumbnailApi async tests", () => {
     responseHelper.getRemoteImagePromise = getRemoteImagePromise;
 
     const thumbnailApi = new ThumbnailApi(
-      dplaApi as unknown as DplaApi,
-      thumbnailStorage as unknown as ThumbnailStorage,
-      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      dplaApi,
+      thumbnailStorage,
+      thumbnailCacheQueue,
       responseHelper,
     );
 
     const sendError = jest.fn();
     thumbnailApi.sendError = sendError;
 
-    await thumbnailApi.proxyItemFromContributor(
-      itemId,
-      mockExpressResponse as unknown as express.Response,
-    );
+    await thumbnailApi.proxyItemFromContributor(itemId, mockExpressResponse);
 
     expect(sendError).toHaveBeenCalledTimes(1);
     expect(getRemoteImagePromise).toHaveBeenCalledTimes(1);
@@ -510,19 +486,16 @@ describe("ThumbnailApi async tests", () => {
     responseHelper.okStatus = okStatus;
 
     const thumbnailApi = new ThumbnailApi(
-      dplaApi as unknown as DplaApi,
-      thumbnailStorage as unknown as ThumbnailStorage,
-      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      dplaApi,
+      thumbnailStorage,
+      thumbnailCacheQueue,
       responseHelper,
     );
 
     const sendError = jest.fn();
     thumbnailApi.sendError = sendError;
 
-    await thumbnailApi.proxyItemFromContributor(
-      itemId,
-      mockExpressResponse as unknown as express.Response,
-    );
+    await thumbnailApi.proxyItemFromContributor(itemId, mockExpressResponse);
 
     expect(sendError).toHaveBeenCalledTimes(1);
     expect(okStatus).toHaveBeenCalledTimes(1);
@@ -530,22 +503,19 @@ describe("ThumbnailApi async tests", () => {
 
   test("handle: bad path", async () => {
     const thumbnailApi = new ThumbnailApi(
-      dplaApi as unknown as DplaApi,
-      thumbnailStorage as unknown as ThumbnailStorage,
-      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      dplaApi,
+      thumbnailStorage,
+      thumbnailCacheQueue,
       responseHelper,
     );
 
     const sendError = jest.fn();
     thumbnailApi.sendError = sendError;
 
-    const req = new ExpressRequest();
+    const req = createRequest();
     req.setPath("thumb/1");
-    const res = new ExpressResponse();
-    await thumbnailApi.handle(
-      req as unknown as express.Request,
-      res as unknown as express.Response,
-    );
+    const res = createResponse();
+    await thumbnailApi.handle(req, res);
 
     expect(sendError).toHaveBeenCalledTimes(1);
   });
@@ -561,22 +531,19 @@ describe("ThumbnailApi async tests", () => {
     thumbnailStorage.lookupImageInS3 = lookupImageInS3;
 
     const thumbnailApi = new ThumbnailApi(
-      dplaApi as unknown as DplaApi,
-      thumbnailStorage as unknown as ThumbnailStorage,
-      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      dplaApi,
+      thumbnailStorage,
+      thumbnailCacheQueue,
       responseHelper,
     );
 
     const serveItemFromS3 = jest.fn();
     thumbnailApi.serveItemFromS3 = serveItemFromS3;
 
-    const req = new ExpressRequest();
+    const req = createRequest();
     req.setPath("/thumb/5b02148ac3ef6f63b6ba84c1cb4122ae");
-    const res = new ExpressResponse();
-    await thumbnailApi.handle(
-      req as unknown as express.Request,
-      res as unknown as express.Response,
-    );
+    const res = createResponse();
+    await thumbnailApi.handle(req, res);
 
     expect(lookupImageInS3).toHaveBeenCalledTimes(1);
     expect(serveItemFromS3).toHaveBeenCalledTimes(1);
@@ -593,9 +560,9 @@ describe("ThumbnailApi async tests", () => {
     );
 
     const thumbnailApi = new ThumbnailApi(
-      dplaApi as unknown as DplaApi,
-      thumbnailStorage as unknown as ThumbnailStorage,
-      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      dplaApi,
+      thumbnailStorage,
+      thumbnailCacheQueue,
       responseHelper,
     );
 
@@ -606,13 +573,10 @@ describe("ThumbnailApi async tests", () => {
     const sendError = jest.fn();
     thumbnailApi.sendError = sendError;
 
-    const req = new ExpressRequest();
+    const req = createRequest();
     req.setPath("/thumb/5b02148ac3ef6f63b6ba84c1cb4122ae");
-    const res = new ExpressResponse();
-    await thumbnailApi.handle(
-      req as unknown as express.Request,
-      res as unknown as express.Response,
-    );
+    const res = createResponse();
+    await thumbnailApi.handle(req, res);
 
     expect(sendError).toHaveBeenCalledWith(
       res,
@@ -635,22 +599,19 @@ describe("ThumbnailApi async tests", () => {
     thumbnailStorage.lookupImageInS3 = lookupImageInS3;
 
     const thumbnailApi = new ThumbnailApi(
-      dplaApi as unknown as DplaApi,
-      thumbnailStorage as unknown as ThumbnailStorage,
-      thumbnailCacheQueue as unknown as ThumbnailCacheQueue,
+      dplaApi,
+      thumbnailStorage,
+      thumbnailCacheQueue,
       responseHelper,
     );
 
     const proxyItemFromContributor = jest.fn();
     thumbnailApi.proxyItemFromContributor = proxyItemFromContributor;
 
-    const req = new ExpressRequest();
+    const req = createRequest();
     req.setPath("/thumb/5b02148ac3ef6f63b6ba84c1cb4122ae");
-    const res = new ExpressResponse();
-    await thumbnailApi.handle(
-      req as unknown as express.Request,
-      res as unknown as express.Response,
-    );
+    const res = createResponse();
+    await thumbnailApi.handle(req, res);
 
     expect(lookupImageInS3).toHaveBeenCalledTimes(1);
     expect(proxyItemFromContributor).toHaveBeenCalledTimes(1);

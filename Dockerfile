@@ -5,7 +5,6 @@ COPY src /opt/thumbnail-api/src
 COPY package.json /opt/thumbnail-api
 COPY package-lock.json /opt/thumbnail-api
 COPY tsconfig.json /opt/thumbnail-api
-COPY eslint.config.mjs /opt/thumbnail-api
 RUN npm install --ignore-scripts && npm run clean && npm run build
 
 FROM node:22-slim AS thumbnail-api-prod

@@ -26,7 +26,7 @@ export class ThumbnailCacheQueue {
     return {
       MessageBody: messageBody,
       QueueUrl: this.sqsUrl,
-    } as SendMessageCommandInput;
+    };
   }
 
   createMessageBody(id: string, url: string): string {

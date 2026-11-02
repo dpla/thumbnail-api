@@ -32,11 +32,11 @@ describe("DplaApi", () => {
   });
 
   test.each([
-    { count: 1, docs: [{ object: "https://foo.com" }] } as SearchResults,
+    { count: 1, docs: [{ object: "https://foo.com" }] },
     {
       count: 2,
       docs: [{ object: "https://foo.com" }, { object: "https://bar.com" }],
-    } as SearchResults,
+    },
   ])("throwOnSearchResults: good", (searchResults: SearchResults) => {
     api.throwOnSearchResults(searchResults);
   });

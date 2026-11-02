@@ -1,4 +1,3 @@
-import * as Sentry from "@sentry/node";
 import morgan from "morgan";
 import { Logger } from "winston";
 import express, { Express } from "express";
@@ -15,10 +14,6 @@ export class ExpressSetup {
   constructor(app: Express, logger: Logger) {
     this.app = app;
     this.logger = logger;
-  }
-
-  sentry() {
-    Sentry.setupExpressErrorHandler(this.app);
   }
 
   morgan() {
@@ -76,16 +71,19 @@ export class ExpressSetup {
     server.requestTimeout = REQUEST_TIMEOUT_MS;
   }
 
+  // Listen callback makes Express 5 swallow the first server error after startup.
   server(port: number): Http.Server {
-    return this.app.listen(port, (): void => {
+    const server = this.app.listen(port);
+    server.once("listening", () => {
       this.logger.info(`Server is listening on ${String(port)}`);
     });
+    return server;
   }
 
   routes(thumbnailApi: ThumbnailApi) {
-    // next two methods are like this to make
-    // eslint happy about the async get handler
     const handler = async (req: express.Request, res: express.Response) => {
+      // Sentry's Express instrumentation and stream.pipeline add over 10 "close" listeners.
+      res.setMaxListeners(20);
       res.setTimeout(RESPONSE_TIMEOUT_MS, () => {
         if (res.writableEnded) {
           return;
@@ -112,13 +110,16 @@ export class ExpressSetup {
       }
     };
 
-    this.app.get("/thumb/*", (req: express.Request, res: express.Response) => {
-      handler(req, res)
-        .then(() => Promise.resolve())
-        .catch((reason: unknown) => {
-          this.logger.error("Caught error from handler: %s", reason);
-        });
-    });
+    this.app.get(
+      "/thumb/{*splat}",
+      (req: express.Request, res: express.Response) => {
+        handler(req, res)
+          .then(() => Promise.resolve())
+          .catch((reason: unknown) => {
+            this.logger.error("Caught error from handler: %s", reason);
+          });
+      },
+    );
 
     this.app.get(
       "/health",
